@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using NUnit.Framework;
@@ -8,16 +9,17 @@ namespace UnitTests_ConfigurationAndLayout
     [TestFixture]
     public class SplunkTests
     {
-        [SetUp]
+        [OneTimeSetUp]
         public void TestSetUp()
         {
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        [TearDown]
+        [OneTimeTearDown]
         public void TestShutdown()
         {
-            LogManager.Flush(TimeSpan.FromSeconds(3));
+            LogManager.Flush();
+            LogManager.Shutdown();
         }
 
         private ILogger _logger;
@@ -25,13 +27,17 @@ namespace UnitTests_ConfigurationAndLayout
         [Test]
         public void LoadTest()
         {
-            Parallel.For(0, 10, i => _logger.Info($"{i} at {DateTime.Now}"));
+            Parallel.For(0, 1000, i => _logger.Info($"{i} at {DateTime.Now}"));
         }
 
         [Test]
         public void LogTests()
         {
-            _logger.Info($"{DateTime.Now} - Confirm visually ");
+            for (int i = 0; i < 5; i++)
+            {
+                _logger.Warn($"{i} !!! {DateTime.Now} - Confirm visually ");
+            }
+            //LogManager.Flush();
         }
     }
 }

@@ -14,31 +14,51 @@ namespace NLog.Targets.Http
     {
         private readonly ConcurrentQueue<string> _taskQueue = new ConcurrentQueue<string>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
-        
+        private readonly SemaphoreSlim conversationActiveFlag = new SemaphoreSlim(1, 1);
+
+        public HTTP()
+        {
+            if (BatchSize == 0) ++BatchSize;
+            var task = Task.Factory.StartNew(() =>
+                {
+                    while (!_terminateProcessor.IsCancellationRequested)
+                    {
+                        var counter = 0;
+                        var sb = new StringBuilder();
+                        while (!_taskQueue.IsEmpty)
+                        {
+                            _taskQueue.TryDequeue(out var message);
+                            if (message != null)
+                            {
+                                ++counter;
+                                sb.AppendLine(message);
+                                if (!_taskQueue.IsEmpty)
+                                    sb.AppendLine();
+                            }
+
+                            if (counter==BatchSize)
+                            {
+                                SendFast(sb.ToString());
+                                sb.Clear();
+                                counter = 0;
+                            }
+                        }
+
+                        if (sb.Length > 0) SendFast(sb.ToString());
+                        Thread.Sleep(1);
+                    }
+                }, _terminateProcessor.Token, TaskCreationOptions.None,
+                TaskScheduler.Default);
+            while(task.Status!=TaskStatus.Running)Thread.Sleep(1);
+        }
+
         [RequiredParameter] public string URL { get; set; }
 
         public string Authorization { get; set; }
 
         public bool IgnoreSslErrors { get; set; } = true;
 
-        protected override void InitializeTarget()
-        {
-            Task.Factory.StartNew(() =>
-                {
-                    while (!_terminateProcessor.IsCancellationRequested)
-                    {
-                        while (!_taskQueue.IsEmpty)
-                        {
-                            string message = null;
-                            _taskQueue.TryDequeue(out message);
-                            if (message != null) SendFast(message);
-                        }
-                        Thread.Sleep(1);
-                    }
-                }, _terminateProcessor.Token, TaskCreationOptions.AttachedToParent | TaskCreationOptions.LongRunning,
-                TaskScheduler.Default);
-            base.InitializeTarget();
-        }
+        public int BatchSize { get; set; }
 
         protected override void CloseTarget()
         {
@@ -48,7 +68,10 @@ namespace NLog.Targets.Http
 
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
-            while (!_taskQueue.IsEmpty) Thread.Sleep(1);
+            // If there are messages to be processed
+            // or no flags available 
+            // just wait
+            while (!_taskQueue.IsEmpty || conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
             base.FlushAsync(asyncContinuation);
         }
 
@@ -59,30 +82,38 @@ namespace NLog.Targets.Http
 
         private void SendFast(string message)
         {
-            var http = (HttpWebRequest) WebRequest.Create(URL);
-            http.KeepAlive = false;
-            http.Method = "POST";
-            if (IgnoreSslErrors)
-                http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
-            if (!string.IsNullOrWhiteSpace(Authorization)) http.Headers.Add("Authorization", Authorization);
-
-            var bytes = Encoding.ASCII.GetBytes(message);
-            http.ContentLength = bytes.Length;
-            using (var os = http.GetRequestStream())
+            conversationActiveFlag.Wait(_terminateProcessor.Token);
+            try
             {
-                os.Write(bytes, 0, bytes.Length); //Push it out there
-                os.Close();
-            }
+                var http = (HttpWebRequest) WebRequest.Create(URL);
+                http.KeepAlive = false;
+                http.Method = "POST";
+                if (IgnoreSslErrors)
+                    http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
+                if (!string.IsNullOrWhiteSpace(Authorization)) http.Headers.Add("Authorization", Authorization);
 
-            using (var response = http.GetResponseAsync())
-            {
-                using (var stream = response.Result.GetResponseStream())
+                var bytes = Encoding.ASCII.GetBytes(message);
+                http.ContentLength = bytes.Length;
+                using (var os = http.GetRequestStream())
                 {
-                    using (var sr = new StreamReader(stream))
+                    os.Write(bytes, 0, bytes.Length); //Push it out there
+                    os.Close();
+                }
+
+                using (var response = http.GetResponseAsync())
+                {
+                    using (var stream = response.Result.GetResponseStream())
                     {
-                        var content = sr.ReadToEnd();
+                        using (var sr = new StreamReader(stream))
+                        {
+                            var content = sr.ReadToEnd();
+                        }
                     }
                 }
+            }
+            finally
+            {
+                conversationActiveFlag.Release();
             }
         }
     }
