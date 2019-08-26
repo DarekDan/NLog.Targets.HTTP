@@ -17,7 +17,7 @@ namespace UnitTests_ConfigurationAndLayout
         [TearDown]
         public void TestShutdown()
         {
-            LogManager.Flush();
+            LogManager.Flush(TimeSpan.FromSeconds(3));
         }
 
         private ILogger _logger;

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -13,35 +12,26 @@ namespace NLog.Targets.Http
     [Target("HTTP")]
     public class HTTP : TargetWithLayout
     {
-        readonly ConcurrentQueue<Action> _taskQueue = new ConcurrentQueue<Action>();
-        readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
-        HttpWebRequest http;
-
+        private readonly ConcurrentQueue<string> _taskQueue = new ConcurrentQueue<string>();
+        private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
+        
         [RequiredParameter] public string URL { get; set; }
 
         public string Authorization { get; set; }
 
         public bool IgnoreSslErrors { get; set; } = true;
 
-
         protected override void InitializeTarget()
-        { 
-            http = (HttpWebRequest) WebRequest.Create(URL);
-            http.KeepAlive = false;
-            http.Method = "POST";
-            if (IgnoreSslErrors)
-                http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
-            if (!string.IsNullOrWhiteSpace(Authorization)) http.Headers.Add("Authorization", Authorization);
-
+        {
             Task.Factory.StartNew(() =>
                 {
                     while (!_terminateProcessor.IsCancellationRequested)
                     {
                         while (!_taskQueue.IsEmpty)
                         {
-                            Action action = null;
-                            _taskQueue.TryDequeue(out action);
-                            action?.Invoke();
+                            string message = null;
+                            _taskQueue.TryDequeue(out message);
+                            if (message != null) SendFast(message);
                         }
                         Thread.Sleep(1);
                     }
@@ -58,24 +48,24 @@ namespace NLog.Targets.Http
 
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
-            while (!_taskQueue.IsEmpty)
-            {
-                Thread.Sleep(1);
-            }
+            while (!_taskQueue.IsEmpty) Thread.Sleep(1);
             base.FlushAsync(asyncContinuation);
         }
 
         protected override void Write(LogEventInfo logEvent)
         {
-            _taskQueue.Enqueue(() =>
-            {
-                var logMessage = Layout.Render(logEvent);
-                SendFast(URL, logMessage);
-            });
+            _taskQueue.Enqueue(Layout.Render(logEvent));
         }
 
-        private void SendFast(string url, string message)
+        private void SendFast(string message)
         {
+            var http = (HttpWebRequest) WebRequest.Create(URL);
+            http.KeepAlive = false;
+            http.Method = "POST";
+            if (IgnoreSslErrors)
+                http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
+            if (!string.IsNullOrWhiteSpace(Authorization)) http.Headers.Add("Authorization", Authorization);
+
             var bytes = Encoding.ASCII.GetBytes(message);
             http.ContentLength = bytes.Length;
             using (var os = http.GetRequestStream())
