@@ -84,6 +84,8 @@ namespace NLog.Targets.Http
 
         protected override void Write(LogEventInfo logEvent)
         {
+            var message = Layout.Render(logEvent);
+            System.Console.WriteLine(message);
             _taskQueue.Enqueue(Layout.Render(logEvent));
         }
 
