@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -85,7 +86,7 @@ namespace NLog.Targets.Http
         protected override void Write(LogEventInfo logEvent)
         {
             var message = Layout.Render(logEvent);
-            System.Console.WriteLine(message);
+            Trace.WriteLine(message);
             _taskQueue.Enqueue(Layout.Render(logEvent));
         }
 
@@ -121,9 +122,9 @@ namespace NLog.Targets.Http
                         using (var sr = new StreamReader(stream))
                         {
                             var content = sr.ReadToEnd();
+                            Trace.WriteLine(content);
                         }
                     }
-
                     return !response.IsFaulted;
                 }
             }
