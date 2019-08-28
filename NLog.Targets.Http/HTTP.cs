@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -14,7 +15,7 @@ namespace NLog.Targets.Http
     {
         private readonly ConcurrentQueue<string> _taskQueue = new ConcurrentQueue<string>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
-        private readonly SemaphoreSlim conversationActiveFlag = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
 
         public HTTP()
         {
@@ -25,6 +26,7 @@ namespace NLog.Targets.Http
                     {
                         var counter = 0;
                         var sb = new StringBuilder();
+                        var stack = new List<string>();
                         while (!_taskQueue.IsEmpty)
                         {
                             _taskQueue.TryDequeue(out var message);
@@ -32,24 +34,29 @@ namespace NLog.Targets.Http
                             {
                                 ++counter;
                                 sb.AppendLine(message);
+                                stack.Add(message);
                                 if (!_taskQueue.IsEmpty)
                                     sb.AppendLine();
                             }
 
-                            if (counter==BatchSize)
+                            if (counter == BatchSize)
                             {
-                                SendFast(sb.ToString());
+                                if (!SendFast(sb.ToString()))
+                                    stack.ForEach(s => _taskQueue.Enqueue(s));
                                 sb.Clear();
+                                stack.Clear();
                                 counter = 0;
                             }
                         }
 
-                        if (sb.Length > 0) SendFast(sb.ToString());
+                        if (sb.Length > 0)
+                            if (!SendFast(sb.ToString()))
+                                stack.ForEach(s => _taskQueue.Enqueue(s));
                         Thread.Sleep(1);
                     }
                 }, _terminateProcessor.Token, TaskCreationOptions.None,
                 TaskScheduler.Default);
-            while(task.Status!=TaskStatus.Running)Thread.Sleep(1);
+            while (task.Status != TaskStatus.Running) Thread.Sleep(1);
         }
 
         [RequiredParameter] public string URL { get; set; }
@@ -71,7 +78,7 @@ namespace NLog.Targets.Http
             // If there are messages to be processed
             // or no flags available 
             // just wait
-            while (!_taskQueue.IsEmpty || conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
+            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
             base.FlushAsync(asyncContinuation);
         }
 
@@ -80,9 +87,14 @@ namespace NLog.Targets.Http
             _taskQueue.Enqueue(Layout.Render(logEvent));
         }
 
-        private void SendFast(string message)
+        /// <summary>
+        /// Sends all the messages
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns><value>true</value> if succeeded</returns>
+        private bool SendFast(string message)
         {
-            conversationActiveFlag.Wait(_terminateProcessor.Token);
+            _conversationActiveFlag.Wait(_terminateProcessor.Token);
             try
             {
                 var http = (HttpWebRequest) WebRequest.Create(URL);
@@ -109,11 +121,13 @@ namespace NLog.Targets.Http
                             var content = sr.ReadToEnd();
                         }
                     }
+
+                    return !response.IsFaulted;
                 }
             }
             finally
             {
-                conversationActiveFlag.Release();
+                _conversationActiveFlag.Release();
             }
         }
     }
