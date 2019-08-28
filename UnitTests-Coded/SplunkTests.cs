@@ -12,6 +12,13 @@ namespace UnitTests_Coded
     {
         private ILogger _logger = null;
 
+        [OneTimeTearDown]
+        public void TestShutdown()
+        {
+            LogManager.Flush();
+            LogManager.Shutdown();
+        }
+
         [SetUp]
         public void TestSetup()
         {
