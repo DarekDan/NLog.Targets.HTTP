@@ -35,8 +35,8 @@ namespace NLog.Targets.Http
                         var stack = new List<string>();
                         while (!_taskQueue.IsEmpty)
                         {
-                            _taskQueue.TryDequeue(out var message);
-                            if (message != null)
+                        
+                            if (_taskQueue.TryDequeue(out var message))
                             {
                                 ++counter;
                                 sb.AppendLine(message);
@@ -47,8 +47,7 @@ namespace NLog.Targets.Http
 
                             if (counter == BatchSize)
                             {
-                                if (!SendFast(sb.ToString()))
-                                    stack.ForEach(s => _taskQueue.Enqueue(s));
+                                ProcessChunk(sb, stack);
                                 sb.Clear();
                                 stack.Clear();
                                 counter = 0;
@@ -56,13 +55,18 @@ namespace NLog.Targets.Http
                         }
 
                         if (sb.Length > 0)
-                            if (!SendFast(sb.ToString()))
-                                stack.ForEach(s => _taskQueue.Enqueue(s));
-                        Thread.Sleep(1);
+                            ProcessChunk(sb, stack);
+                        Thread.Sleep(1);                        
                     }
                 }, _terminateProcessor.Token, TaskCreationOptions.None,
                 TaskScheduler.Default);
             while (task.Status != TaskStatus.Running) Thread.Sleep(1);
+        }
+
+        private void ProcessChunk(StringBuilder sb, List<string> stack)
+        {
+            if (!SendFast(sb.ToString()))
+                stack.ForEach(s => _taskQueue.Enqueue(s));
         }
 
         [RequiredParameter] public string URL { get; set; }
@@ -124,18 +128,14 @@ namespace NLog.Targets.Http
                 using (var os = http.GetRequestStream())
                 {
                     os.Write(bytes, 0, bytes.Length); //Push it out there
-                    os.Close();
+                    //os.Close();
                 }
 
                 using (var response = http.GetResponseAsync())
                 {
-                    using (var stream = response.Result.GetResponseStream())
+                    using (var sr = new StreamReader(response.Result.GetResponseStream()))
                     {
-                        using (var sr = new StreamReader(stream))
-                        {
-                            var content = sr.ReadToEnd();
-                            Trace.WriteLine(content);
-                        }
+                        var content = sr.ReadToEnd();
                     }
                     return !response.IsFaulted;
                 }
