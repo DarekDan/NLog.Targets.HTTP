@@ -16,18 +16,17 @@ namespace NLog.Targets.Http
     // ReSharper disable once InconsistentNaming
     public class HTTP : TargetWithLayout
     {
+        private static readonly WebProxy NoProxy = new WebProxy();
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentQueue<StrongBox<string>> _taskQueue = new ConcurrentQueue<StrongBox<string>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
 
-        private static readonly WebProxy NoProxy = new WebProxy();
-
         public HTTP()
         {
             if (BatchSize == 0) ++BatchSize;
-            //TODO make it into a parameter
-            ServicePointManager.DefaultConnectionLimit = 100;
-            ServicePointManager.Expect100Continue = false;
+            if (DefaultConnectionLimit > ServicePointManager.DefaultConnectionLimit)
+                ServicePointManager.DefaultConnectionLimit = DefaultConnectionLimit;
+            ServicePointManager.Expect100Continue = Expect100Continue;
 
             var task = Task.Factory.StartNew(() =>
                 {
@@ -67,7 +66,12 @@ namespace NLog.Targets.Http
             while (task.Status != TaskStatus.Running) Thread.Sleep(1);
         }
 
+        /// <summary>
+        /// URL to Post to
+        /// </summary>
         [RequiredParameter] public string Url { get; set; }
+
+        public string Method { get; set; } = "POST";
 
         public string Authorization { get; set; }
 
@@ -77,7 +81,16 @@ namespace NLog.Targets.Http
 
         public int BatchSize { get; set; }
 
-        public int MaxQueueSize { get; set; } = Int32.MaxValue;
+        public int MaxQueueSize { get; set; } = int.MaxValue;
+
+        public string ContentType { get; set; } = "application/json";
+        public string Accept { get; set; } = "application/json";
+
+        public int DefaultConnectionLimit { get; set; } = 10;
+
+        public bool Expect100Continue { get; set; } = false;
+
+        public int ConnectTimeout { get; set; } = 30000;
 
         private void ProcessChunk(StringBuilder sb, List<StrongBox<string>> stack)
         {
@@ -109,10 +122,7 @@ namespace NLog.Targets.Http
 
         protected override void Write(LogEventInfo logEvent)
         {
-            while (_taskQueue.Count > MaxQueueSize)
-            {
-                ProcessCurrentMessages();
-            }
+            while (_taskQueue.Count > MaxQueueSize) ProcessCurrentMessages();
             _taskQueue.Enqueue(new StrongBox<string> {Value = Layout.Render(logEvent)});
         }
 
@@ -131,12 +141,11 @@ namespace NLog.Targets.Http
             {
                 var http = (HttpWebRequest) WebRequest.Create(Url);
                 http.KeepAlive = false;
-                http.Method = "POST";
+                http.Method = Method;
 
-                //TODO Make it a Configuration attribute
-                http.ContentType = "application/json";
-                http.Accept = "application/json";
-                http.Timeout = 30000;
+                http.ContentType = ContentType;
+                http.Accept = Accept;
+                http.Timeout = ConnectTimeout;
                 //TODO needs to be configurable
                 http.Proxy = NoProxy;
 
@@ -149,12 +158,12 @@ namespace NLog.Targets.Http
                 using (var os = http.GetRequestStream())
                 {
                     os.Write(bytes, 0, bytes.Length); //Push it out there
-                    //os.Close();
                 }
 
                 using (var response = http.GetResponseAsync())
                 {
-                    using (var sr = new StreamReader(response.Result.GetResponseStream() ?? throw new InvalidOperationException()))
+                    using (var sr =
+                        new StreamReader(response.Result.GetResponseStream() ?? throw new InvalidOperationException()))
                     {
                         //TODO What should we check for>
                         // ReSharper disable once UnusedVariable

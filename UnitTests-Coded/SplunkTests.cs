@@ -23,7 +23,6 @@ namespace UnitTests_Coded
                     Attributes =
                     {
                         new JsonAttribute("sourcetype", "_json"),
-                        //TODO
                         new JsonAttribute("host", "TODO"),
                         new JsonAttribute("event", new JsonLayout
                             {
