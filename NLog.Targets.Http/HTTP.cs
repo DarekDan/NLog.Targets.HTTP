@@ -27,6 +27,7 @@ namespace NLog.Targets.Http
             if (DefaultConnectionLimit > ServicePointManager.DefaultConnectionLimit)
                 ServicePointManager.DefaultConnectionLimit = DefaultConnectionLimit;
             ServicePointManager.Expect100Continue = Expect100Continue;
+            if (MaxQueueSize < 1) MaxQueueSize = int.MaxValue;
 
             var task = Task.Factory.StartNew(() =>
                 {
@@ -67,9 +68,10 @@ namespace NLog.Targets.Http
         }
 
         /// <summary>
-        /// URL to Post to
+        ///     URL to Post to
         /// </summary>
-        [RequiredParameter] public string Url { get; set; }
+        [RequiredParameter]
+        public string Url { get; set; }
 
         public string Method { get; set; } = "POST";
 
