@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -77,21 +76,30 @@ namespace NLog.Targets.Http
 
         public bool IgnoreSslErrors { get; set; } = true;
 
+        public bool FlushBeforeShutdown { get; set; } = true;
+
         public int BatchSize { get; set; }
 
         protected override void CloseTarget()
         {
+            if (FlushBeforeShutdown)
+                ProcessCurrentMessages();
             _terminateProcessor.Cancel(false);
             base.CloseTarget();
         }
 
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
+            ProcessCurrentMessages();
+            base.FlushAsync(asyncContinuation);
+        }
+
+        private void ProcessCurrentMessages()
+        {
             // If there are messages to be processed
             // or no flags available 
             // just wait
             while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
-            base.FlushAsync(asyncContinuation);
         }
 
         protected override void Write(LogEventInfo logEvent)
