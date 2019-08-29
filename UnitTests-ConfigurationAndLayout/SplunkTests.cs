@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using NUnit.Framework;
@@ -27,17 +26,13 @@ namespace UnitTests_ConfigurationAndLayout
         [Test]
         public void LoadTest()
         {
-            Parallel.For(0, 1000, i => _logger.Info($"{i} at {DateTime.Now}"));
+            Parallel.For(0, 100000, i => _logger.Info($"{i} at {DateTime.Now}"));
         }
 
         [Test]
         public void LogTests()
         {
-            for (int i = 0; i < 5; i++)
-            {
-                _logger.Warn($"{i} !!! {DateTime.Now} - Confirm visually ");
-            }
-            //LogManager.Flush();
+            for (var i = 0; i < 5; i++) _logger.Warn($"{i} !!! {DateTime.Now} - Confirm visually ");
         }
     }
 }

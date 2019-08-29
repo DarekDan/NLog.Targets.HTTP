@@ -1,11 +1,11 @@
-﻿using System;
-using System.Text;
+﻿using System.Text;
 using NLog.LayoutRenderers;
 
 namespace NLog.Targets.Http
 {
+    // ReSharper disable once StringLiteralTypo
     [LayoutRenderer("unixtime")]
-    public class UnixTimeLayoutRenderer:LayoutRenderer
+    public class UnixTimeLayoutRenderer : LayoutRenderer
     {
         protected override void Append(StringBuilder builder, LogEventInfo logEvent)
         {

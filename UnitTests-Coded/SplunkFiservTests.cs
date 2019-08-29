@@ -8,7 +8,7 @@ using NUnit.Framework;
 namespace UnitTests_Coded
 {
     [TestFixture]
-    public class SplunkTests
+    public class SplunkFiservTests
     {
         [SetUp]
         public void TestSetup()
@@ -16,8 +16,8 @@ namespace UnitTests_Coded
             var config = new LoggingConfiguration();
             var target = new HTTP
             {
-                Url = "https://input-prd-p-9dvvm7mz6x87.cloud.splunk.com:8088/services/collector",
-                Authorization = "Splunk a575956e-10a5-4048-8b69-3f064da1ca88",
+                Url = "https://us-splunk-hec.1dc.com/services/collector/event",
+                Authorization = "Splunk 1c8c9650-8c63-49f1-9968-edb95acc8773",
                 Layout = new JsonLayout
                 {
                     Attributes =

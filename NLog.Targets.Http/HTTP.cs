@@ -13,11 +13,14 @@ using NLog.Config;
 namespace NLog.Targets.Http
 {
     [Target("HTTP")]
+    // ReSharper disable once InconsistentNaming
     public class HTTP : TargetWithLayout
     {
+        private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentQueue<StrongBox<string>> _taskQueue = new ConcurrentQueue<StrongBox<string>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
-        private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
+
+        private static readonly WebProxy NoProxy = new WebProxy();
 
         public HTTP()
         {
@@ -35,7 +38,6 @@ namespace NLog.Targets.Http
                         var stack = new List<StrongBox<string>>();
                         while (!_taskQueue.IsEmpty)
                         {
-                        
                             if (_taskQueue.TryDequeue(out var message))
                             {
                                 ++counter;
@@ -43,7 +45,8 @@ namespace NLog.Targets.Http
                                 stack.Add(message);
                                 if (!_taskQueue.IsEmpty)
                                     sb.AppendLine();
-                                message = null;
+                                // ReSharper disable once RedundantAssignment
+                                message = null; //needed to reduce stress on memory 
                             }
 
                             if (counter == BatchSize)
@@ -64,13 +67,7 @@ namespace NLog.Targets.Http
             while (task.Status != TaskStatus.Running) Thread.Sleep(1);
         }
 
-        private void ProcessChunk(StringBuilder sb, List<StrongBox<string>> stack)
-        {
-            if (!SendFast(sb.ToString()))
-                stack.ForEach(s => _taskQueue.Enqueue(s));
-        }
-
-        [RequiredParameter] public string URL { get; set; }
+        [RequiredParameter] public string Url { get; set; }
 
         public string Authorization { get; set; }
 
@@ -79,6 +76,12 @@ namespace NLog.Targets.Http
         public bool FlushBeforeShutdown { get; set; } = true;
 
         public int BatchSize { get; set; }
+
+        private void ProcessChunk(StringBuilder sb, List<StrongBox<string>> stack)
+        {
+            if (!SendFast(sb.ToString()))
+                stack.ForEach(s => _taskQueue.Enqueue(s));
+        }
 
         protected override void CloseTarget()
         {
@@ -104,21 +107,23 @@ namespace NLog.Targets.Http
 
         protected override void Write(LogEventInfo logEvent)
         {
-            var message = Layout.Render(logEvent);
-            _taskQueue.Enqueue(new StrongBox<string> { Value = Layout.Render(logEvent) });
+            _taskQueue.Enqueue(new StrongBox<string> {Value = Layout.Render(logEvent)});
         }
 
         /// <summary>
-        /// Sends all the messages
+        ///     Sends all the messages
         /// </summary>
         /// <param name="message"></param>
-        /// <returns><value>true</value> if succeeded</returns>
+        /// <returns>
+        ///     <value>true</value>
+        ///     if succeeded
+        /// </returns>
         private bool SendFast(string message)
         {
             _conversationActiveFlag.Wait(_terminateProcessor.Token);
             try
             {
-                var http = (HttpWebRequest) WebRequest.Create(URL);
+                var http = (HttpWebRequest) WebRequest.Create(Url);
                 http.KeepAlive = false;
                 http.Method = "POST";
 
@@ -126,7 +131,8 @@ namespace NLog.Targets.Http
                 http.ContentType = "application/json";
                 http.Accept = "application/json";
                 http.Timeout = 30;
-                http.Proxy = null;
+                //TODO needs to be configurable
+                http.Proxy = NoProxy;
 
                 if (IgnoreSslErrors)
                     http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
@@ -142,20 +148,24 @@ namespace NLog.Targets.Http
 
                 using (var response = http.GetResponseAsync())
                 {
-                    using (var sr = new StreamReader(response.Result.GetResponseStream()))
+                    using (var sr = new StreamReader(response.Result.GetResponseStream() ?? throw new InvalidOperationException()))
                     {
+                        //TODO What should we check for>
+                        // ReSharper disable once UnusedVariable
                         var content = sr.ReadToEnd();
                     }
+
                     return !response.IsFaulted;
                 }
-            } catch(WebException wex)
+            }
+            catch (WebException wex)
             {
-                //TODO Analyze status
+                InternalLogger.Warn(wex, "Failed to communicate over HTTP");
                 return false;
             }
             catch (Exception ex)
             {
-                //TODO Send to intternal logger
+                InternalLogger.Warn(ex, "Unknown exception occured");
                 return false;
             }
             finally
