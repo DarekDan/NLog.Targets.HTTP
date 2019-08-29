@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,7 +16,7 @@ namespace NLog.Targets.Http
     [Target("HTTP")]
     public class HTTP : TargetWithLayout
     {
-        private readonly ConcurrentQueue<string> _taskQueue = new ConcurrentQueue<string>();
+        private readonly ConcurrentQueue<StrongBox<string>> _taskQueue = new ConcurrentQueue<StrongBox<string>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
 
@@ -32,17 +33,18 @@ namespace NLog.Targets.Http
                     {
                         var counter = 0;
                         var sb = new StringBuilder();
-                        var stack = new List<string>();
+                        var stack = new List<StrongBox<string>>();
                         while (!_taskQueue.IsEmpty)
                         {
                         
                             if (_taskQueue.TryDequeue(out var message))
                             {
                                 ++counter;
-                                sb.AppendLine(message);
+                                sb.AppendLine(message.Value);
                                 stack.Add(message);
                                 if (!_taskQueue.IsEmpty)
                                     sb.AppendLine();
+                                message = null;
                             }
 
                             if (counter == BatchSize)
@@ -56,14 +58,14 @@ namespace NLog.Targets.Http
 
                         if (sb.Length > 0)
                             ProcessChunk(sb, stack);
-                        Thread.Sleep(1);                        
+                        Thread.Sleep(1);
                     }
                 }, _terminateProcessor.Token, TaskCreationOptions.None,
                 TaskScheduler.Default);
             while (task.Status != TaskStatus.Running) Thread.Sleep(1);
         }
 
-        private void ProcessChunk(StringBuilder sb, List<string> stack)
+        private void ProcessChunk(StringBuilder sb, List<StrongBox<string>> stack)
         {
             if (!SendFast(sb.ToString()))
                 stack.ForEach(s => _taskQueue.Enqueue(s));
@@ -95,8 +97,7 @@ namespace NLog.Targets.Http
         protected override void Write(LogEventInfo logEvent)
         {
             var message = Layout.Render(logEvent);
-            Trace.WriteLine(message);
-            _taskQueue.Enqueue(Layout.Render(logEvent));
+            _taskQueue.Enqueue(new StrongBox<string> { Value = Layout.Render(logEvent) });
         }
 
         /// <summary>
