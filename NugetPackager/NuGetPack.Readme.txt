@@ -1,0 +1,19 @@
+﻿For a detailed Getting Started Guide, see this article:
+https://www.codeproject.com/Tips/804005/Automated-Creation-of-NuGet-Packages
+
+For an example see the demos in the source code solution:
+https://github.com/pub-comp/building
+
+Version history:
+https://github.com/pub-comp/building/blob/master/VersionHistory.txt
+
+For the post-build event NuGet.exe and NuGetPack.exe are required.
+You can add them to your solution by adding the "PubComp.NuGetPack" NuGet package to the solution via the NuGet package manager.
+
+Brief Summary of the Getting Started Guide:
+1. You can modify the package metadata by editing NuGetPack.config.
+2. To include projects in this package, add project references to this project.
+3. To include dependencies on external NuGet packages, add NuGet package references to this project.
+4. To include dependencies on other NuGet packages created in this solution, add them to the internalPackages.config file.
+5. To synchronize the package version with the version of the assemblies included in it, use a shared AssemblyInfo.cs file for the source projects and the NuGet package projects.
+6. To add system reference to the package, add them as references to this project and set AddFrameworkReferences to true in the config file.

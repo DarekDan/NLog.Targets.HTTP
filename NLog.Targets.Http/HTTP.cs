@@ -77,6 +77,8 @@ namespace NLog.Targets.Http
 
         public int BatchSize { get; set; }
 
+        public int MaxQueueSize { get; set; } = Int32.MaxValue;
+
         private void ProcessChunk(StringBuilder sb, List<StrongBox<string>> stack)
         {
             if (!SendFast(sb.ToString()))
@@ -107,6 +109,10 @@ namespace NLog.Targets.Http
 
         protected override void Write(LogEventInfo logEvent)
         {
+            while (_taskQueue.Count > MaxQueueSize)
+            {
+                ProcessCurrentMessages();
+            }
             _taskQueue.Enqueue(new StrongBox<string> {Value = Layout.Render(logEvent)});
         }
 
@@ -130,7 +136,7 @@ namespace NLog.Targets.Http
                 //TODO Make it a Configuration attribute
                 http.ContentType = "application/json";
                 http.Accept = "application/json";
-                http.Timeout = 30;
+                http.Timeout = 30000;
                 //TODO needs to be configurable
                 http.Proxy = NoProxy;
 
