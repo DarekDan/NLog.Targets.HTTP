@@ -1,8 +1,8 @@
-using System.Threading.Tasks;
-using System;
-using NUnit.Framework;
 using NLog;
 using NLog.Fluent;
+using NUnit.Framework;
+using System;
+using System.Threading.Tasks;
 
 namespace Tests
 {
@@ -35,7 +35,7 @@ namespace Tests
         [Test]
         public void LoadTest()
         {
-            Parallel.For(0, 1000, i => _logger.Info()
+            Parallel.For(0, 100000, i => _logger.Info()
             .Message($"Testing NLog: Message #{i} at {DateTime.Now}")
             .Property("seq", i % 100)
             .Property("interactionid", Guid.NewGuid().ToString()).Write());
@@ -47,7 +47,16 @@ namespace Tests
             for (int i = 0; i < 1; i++)
             {
                 _logger.Warn()
-                    .Message($"{i} !!! {DateTime.Now} - Confirm visually ")
+                    .Message($"XX WARN {i} !!! {DateTime.Now} - Confirm visually ")
+                    .Property("seq", i % 100)
+                    .Property("interactionid", Guid.NewGuid().ToString())
+                    .Write();
+                _logger.Info()
+                    .Message($"XX INFO {i} !!! {DateTime.Now} - Confirm visually ")
+                    .Property("seq", i % 100)
+                    .Property("interactionid", Guid.NewGuid().ToString())    .Write();
+                _logger.Debug()
+                    .Message($"XX DEBUG {i} !!! {DateTime.Now} - Confirm visually ")
                     .Property("seq", i % 100)
                     .Property("interactionid", Guid.NewGuid().ToString())
                     .Write();

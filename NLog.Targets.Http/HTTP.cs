@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -21,6 +22,10 @@ namespace NLog.Targets.Http
         public HTTP()
         {
             if (BatchSize == 0) ++BatchSize;
+            //TODO make it into a parameter
+            ServicePointManager.DefaultConnectionLimit = 100;
+            ServicePointManager.Expect100Continue = false;
+
             var task = Task.Factory.StartNew(() =>
                 {
                     while (!_terminateProcessor.IsCancellationRequested)
@@ -103,6 +108,13 @@ namespace NLog.Targets.Http
                 var http = (HttpWebRequest) WebRequest.Create(URL);
                 http.KeepAlive = false;
                 http.Method = "POST";
+
+                //TODO Make it a Configuration attribute
+                http.ContentType = "application/json";
+                http.Accept = "application/json";
+                http.Timeout = 30;
+                http.Proxy = null;
+
                 if (IgnoreSslErrors)
                     http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
                 if (!string.IsNullOrWhiteSpace(Authorization)) http.Headers.Add("Authorization", Authorization);
@@ -127,6 +139,15 @@ namespace NLog.Targets.Http
                     }
                     return !response.IsFaulted;
                 }
+            } catch(WebException wex)
+            {
+                //TODO Analyze status
+                return false;
+            }
+            catch (Exception ex)
+            {
+                //TODO Send to intternal logger
+                return false;
             }
             finally
             {
