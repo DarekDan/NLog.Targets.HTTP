@@ -101,7 +101,7 @@ Password to use for proxy authentication.
             BatchSize='100'>
       <layout type='JsonLayout'>
         <attribute name='sourcetype' layout='_json' />
-        <attribute name='host' layout='myHostName' />
+        <attribute name='host' layout='${machinename}' />
         <attribute name='event' encode='false'>
           <layout type='JsonLayout'>
             <attribute name='level' layout='${level:upperCase=true}' />
