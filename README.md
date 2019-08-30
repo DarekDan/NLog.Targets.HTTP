@@ -1,5 +1,7 @@
 # NLog.Targets.HTTP
 
+[![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/NLog.Targets.HTTP)](https://www.nuget.org/packages/NLog.Targets.HTTP)
+
 NLog.Targets.HTTP is a HTTP POST target for NLog. 
 Combined with JSON formatter it can be used to send events to an 
 instance of Splunk and other HTTP based collectors.
