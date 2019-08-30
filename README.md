@@ -23,6 +23,7 @@ Listed below are available configuration parameters with their default values
         DefaultConnectionLimit='10'
         Expect100Continue='false'
         ConnectTimeout='30000' 
+        InMemoryCompression='true'
     >
 
 ```
@@ -61,7 +62,10 @@ How many connections might be used at the same time. Changes ServicePointManager
 See [this article](https://docs.microsoft.com/en-us/dotnet/api/system.net.servicepointmanager.expect100continue?view=netframework-4.8)
 
 #### ConnectTimeout
-How long should the client wait to connect (default is __30__ seconds)
+How long should the client wait to connect (default is __30__ seconds).
+
+#### InMemoryCompression
+Reduces the amount of memory consumed at the expense of increased CPU usage.
 
 ### Sample SPLUNK Configuration
 

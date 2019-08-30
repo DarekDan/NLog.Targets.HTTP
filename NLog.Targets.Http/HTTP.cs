@@ -41,7 +41,9 @@ namespace NLog.Targets.Http
                             if (_taskQueue.TryDequeue(out var message))
                             {
                                 ++counter;
-                                sb.AppendLine(Utility.Unzip(message.Value));
+                                sb.AppendLine(InMemoryCompression
+                                    ? Utility.Unzip(message.Value)
+                                    : Encoding.UTF8.GetString(message.Value));
                                 stack.Add(message);
                                 if (!_taskQueue.IsEmpty)
                                     sb.AppendLine();
@@ -94,6 +96,8 @@ namespace NLog.Targets.Http
 
         public int ConnectTimeout { get; set; } = 30000;
 
+        public bool InMemoryCompression { get; set; } = true;
+
         private void ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
         {
             if (!SendFast(sb.ToString()))
@@ -125,7 +129,12 @@ namespace NLog.Targets.Http
         protected override void Write(LogEventInfo logEvent)
         {
             while (_taskQueue.Count > MaxQueueSize) ProcessCurrentMessages();
-            _taskQueue.Enqueue(new StrongBox<byte[]> {Value = Utility.Zip(Layout.Render(logEvent))});
+            _taskQueue.Enqueue(new StrongBox<byte[]>
+            {
+                Value = InMemoryCompression
+                    ? Utility.Zip(Layout.Render(logEvent))
+                    : Encoding.UTF8.GetBytes(Layout.Render(logEvent))
+            });
         }
 
         /// <summary>
