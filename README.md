@@ -24,6 +24,9 @@ Listed below are available configuration parameters with their default values
         Expect100Continue='false'
         ConnectTimeout='30000' 
         InMemoryCompression='true'
+        ProxyUrl=''
+        ProxyUser=''
+        ProxyPassword=''
     >
 
 ```
@@ -56,7 +59,7 @@ HTTP ContentType Header value.
 HTTP Accept Header value.
 
 #### DefaultConnectionLimit
-How many connections might be used at the same time. Changes ServicePointManager.DefaultConnectionLimit if value is less than specified.
+How many connections might be used at the same time. Changes ServicePointManager.DefaultConnectionLimit if existing value is less than specified.
 
 #### Expect100Continue
 See [this article](https://docs.microsoft.com/en-us/dotnet/api/system.net.servicepointmanager.expect100continue?view=netframework-4.8)
@@ -66,6 +69,15 @@ How long should the client wait to connect (default is __30__ seconds).
 
 #### InMemoryCompression
 Reduces the amount of memory consumed at the expense of increased CPU usage.
+
+#### ProxyUrl
+Designates a proxy server to use. Must include protocol (http|https) and port
+
+#### ProxyUser
+If proxy authentication is needed, you can specify it with a domain prefix, i.e. DOMAIN\USER.
+
+#### ProxyPassword
+Password to use for proxy authentication.
 
 ### Sample SPLUNK Configuration
 

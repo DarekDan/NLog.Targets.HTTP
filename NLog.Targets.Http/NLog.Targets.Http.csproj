@@ -13,14 +13,16 @@
     <PackageLicenseUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/LICENSE</PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>0.0.2</Version>
+    <Version>0.0.3</Version>
     <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>Version 0.0.2
+    <PackageReleaseNotes>Version 0.0.3
+- Added support for proxy server configuration.
+Version 0.0.2
 - Thanks to Alan Barber (https://github.com/AlanBarber) for NuGet build scripts and inspiration for this Http Target (his Splunk target https://github.com/AlanBarber/NLog.Targets.Splunk).
-- Thanks to Nate McMaster (https://natemcmaster.com/blog/2017/03/09/vs2015-to-vs2017-upgrade/) and Derek Comartin (https://codeopinion.com/converting-a-library-to-netstandard/) for conversion tips
+- Thanks to Nate McMaster (https://natemcmaster.com/blog/2017/03/09/vs2015-to-vs2017-upgrade/) and Derek Comartin (https://codeopinion.com/converting-a-library-to-netstandard/) for conversion tips.
 Version 0.0.1
-- Big thanks to Stan Smith for insiting to make it lean and performant
-- First publish to NuGet
+- Big thanks to Stan Smith for insiting to make it lean and performant.
+- First publish to NuGet.
     </PackageReleaseNotes>
   </PropertyGroup>
 

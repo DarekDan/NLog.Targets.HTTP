@@ -98,6 +98,10 @@ namespace NLog.Targets.Http
 
         public bool InMemoryCompression { get; set; } = true;
 
+        public string ProxyUrl { get; set; } = String.Empty;
+        public string ProxyUser { get; set; } = String.Empty;
+        public string ProxyPassword { get; set; } = String.Empty;
+
         private void ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
         {
             if (!SendFast(sb.ToString()))
@@ -157,8 +161,15 @@ namespace NLog.Targets.Http
                 http.ContentType = ContentType;
                 http.Accept = Accept;
                 http.Timeout = ConnectTimeout;
-                //TODO needs to be configurable
-                http.Proxy = NoProxy;
+                http.Proxy = String.IsNullOrWhiteSpace(ProxyUrl) ? NoProxy :
+                    new WebProxy(new Uri(ProxyUrl)){UseDefaultCredentials = String.IsNullOrWhiteSpace(ProxyUser)};
+                if (!String.IsNullOrWhiteSpace(ProxyUser))
+                {
+                    var cred = ProxyUser.Split('\\');
+                    http.Proxy.Credentials = cred.Length == 1
+                        ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
+                        : new NetworkCredential {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
+                }
 
                 if (IgnoreSslErrors)
                     http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
