@@ -18,7 +18,7 @@ namespace NLog.Targets.Http
     {
         private static readonly WebProxy NoProxy = new WebProxy();
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
-        private readonly ConcurrentQueue<StrongBox<string>> _taskQueue = new ConcurrentQueue<StrongBox<string>>();
+        private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
 
         public HTTP()
@@ -35,13 +35,13 @@ namespace NLog.Targets.Http
                     {
                         var counter = 0;
                         var sb = new StringBuilder();
-                        var stack = new List<StrongBox<string>>();
+                        var stack = new List<StrongBox<byte[]>>();
                         while (!_taskQueue.IsEmpty)
                         {
                             if (_taskQueue.TryDequeue(out var message))
                             {
                                 ++counter;
-                                sb.AppendLine(message.Value);
+                                sb.AppendLine(Utility.Unzip(message.Value));
                                 stack.Add(message);
                                 if (!_taskQueue.IsEmpty)
                                     sb.AppendLine();
@@ -94,7 +94,7 @@ namespace NLog.Targets.Http
 
         public int ConnectTimeout { get; set; } = 30000;
 
-        private void ProcessChunk(StringBuilder sb, List<StrongBox<string>> stack)
+        private void ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
         {
             if (!SendFast(sb.ToString()))
                 stack.ForEach(s => _taskQueue.Enqueue(s));
@@ -125,7 +125,7 @@ namespace NLog.Targets.Http
         protected override void Write(LogEventInfo logEvent)
         {
             while (_taskQueue.Count > MaxQueueSize) ProcessCurrentMessages();
-            _taskQueue.Enqueue(new StrongBox<string> {Value = Layout.Render(logEvent)});
+            _taskQueue.Enqueue(new StrongBox<byte[]> {Value = Utility.Zip(Layout.Render(logEvent))});
         }
 
         /// <summary>
