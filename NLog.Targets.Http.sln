@@ -11,12 +11,19 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests-ConfigurationAndL
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{FE630AC2-DD99-4812-B65A-CF9BBB956611}"
 	ProjectSection(SolutionItems) = preProject
+		LICENSE = LICENSE
 		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests-Fiserv", "UnitTests-Fiserv\UnitTests-Fiserv.csproj", "{1DADB065-2269-4F43-8C54-C952E6208830}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NugetPackager", "NugetPackager\NugetPackager.csproj", "{AEA3D3AD-56C4-4811-806B-DE563E248138}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".NuGetPack", ".NuGetPack", "{99CCF9C5-8DE1-42F1-9391-12587AA12057}"
+	ProjectSection(SolutionItems) = preProject
+		.NuGetPack\NuGet.exe = .NuGetPack\NuGet.exe
+		.NuGetPack\NuGetPack.exe = .NuGetPack\NuGetPack.exe
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
