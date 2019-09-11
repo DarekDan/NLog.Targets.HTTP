@@ -92,7 +92,7 @@ namespace NLog.Targets.Http
 
         public int DefaultConnectionLimit { get; set; } = 10;
 
-        public bool Expect100Continue { get; set; } = false;
+        public bool Expect100Continue { get; set; } = true;
 
         public int ConnectTimeout { get; set; } = 30000;
 
