@@ -7,7 +7,9 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
+using System.Xml;
 using System.Xml.Linq;
+using System.Xml.XPath;
 using NLog;
 using NLog.Config;
 using NUnit.Framework;
@@ -42,14 +44,13 @@ namespace UnitTests_ConfigurationAndLayout
 
             var configFilePath = Path.Combine(_testDirectory, "nlog.config");
             var doc = XDocument.Load(configFilePath);
-            var ns = doc.Root?.Name.Namespace;
-            var target = doc.Root?.Element(ns + "targets")
-                ?.Elements(ns + "target").First(f =>
-                    f.HasAttributes &&
-                    f.Attributes().Any(g => g.Name.LocalName.Equals("name") && g.Value.Equals("splunk")));
+            XmlNameTable nameTable = new NameTable();
+            var namespaceManager = new XmlNamespaceManager(nameTable);
+            namespaceManager.AddNamespace("ns1", doc.Root.GetDefaultNamespace().NamespaceName);
+            var target = doc.Root.XPathSelectElement("ns1:targets/ns1:target[@name='splunk']", namespaceManager);
             const int expectedConnectionLimit = 1000;
-            target?.Add(new XAttribute("DefaultConnectionLimit", expectedConnectionLimit));
-            doc?.Save(configFilePath);
+            target.Add(new XAttribute("DefaultConnectionLimit", expectedConnectionLimit));
+            doc.Save(configFilePath);
             semaphore.Wait(TimeSpan.FromSeconds(5));
             Assert.AreEqual(expectedConnectionLimit, ServicePointManager.DefaultConnectionLimit);
             semaphore.Release();
