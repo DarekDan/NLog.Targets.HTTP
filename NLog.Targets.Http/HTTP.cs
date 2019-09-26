@@ -23,12 +23,6 @@ namespace NLog.Targets.Http
 
         public HTTP()
         {
-            if (BatchSize == 0) ++BatchSize;
-            if (DefaultConnectionLimit > ServicePointManager.DefaultConnectionLimit)
-                ServicePointManager.DefaultConnectionLimit = DefaultConnectionLimit;
-            ServicePointManager.Expect100Continue = Expect100Continue;
-            if (MaxQueueSize < 1) MaxQueueSize = int.MaxValue;
-
             var task = Task.Factory.StartNew(() =>
                 {
                     while (!_terminateProcessor.IsCancellationRequested)
@@ -83,23 +77,58 @@ namespace NLog.Targets.Http
 
         public bool FlushBeforeShutdown { get; set; } = true;
 
-        public int BatchSize { get; set; }
+        private int _batchSize = 1;
 
-        public int MaxQueueSize { get; set; } = int.MaxValue;
+        public int BatchSize
+        {
+            get => _batchSize;
+            set => _batchSize = (value < 1) ? 1 : value;
+        }
+
+        private int _maxQueueSize = int.MaxValue;
+
+        public int MaxQueueSize
+        {
+            get => _maxQueueSize;
+            set => _maxQueueSize = (value < 1) ? int.MaxValue : value;
+        }
 
         public string ContentType { get; set; } = "application/json";
+
         public string Accept { get; set; } = "application/json";
 
-        public int DefaultConnectionLimit { get; set; } = 10;
+        public int DefaultConnectionLimit
+        {
+            get => ServicePointManager.DefaultConnectionLimit;
+            set
+            {
+                if (ServicePointManager.DefaultConnectionLimit != value)
+                {
+                    ServicePointManager.DefaultConnectionLimit = value;
+                }
+            }
+        }
 
-        public bool Expect100Continue { get; set; } = true;
+        public bool Expect100Continue
+        {
+            get => ServicePointManager.Expect100Continue;
+            set
+            {
+                if (ServicePointManager.Expect100Continue != value)
+                {
+                    ServicePointManager.Expect100Continue = value;
+                }
+            }
+        }
 
         public int ConnectTimeout { get; set; } = 30000;
 
         public bool InMemoryCompression { get; set; } = true;
 
         public string ProxyUrl { get; set; } = String.Empty;
+
         public string ProxyUser { get; set; } = String.Empty;
+
         public string ProxyPassword { get; set; } = String.Empty;
 
         private void ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
@@ -161,8 +190,9 @@ namespace NLog.Targets.Http
                 http.ContentType = ContentType;
                 http.Accept = Accept;
                 http.Timeout = ConnectTimeout;
-                http.Proxy = String.IsNullOrWhiteSpace(ProxyUrl) ? NoProxy :
-                    new WebProxy(new Uri(ProxyUrl)){UseDefaultCredentials = String.IsNullOrWhiteSpace(ProxyUser)};
+                http.Proxy = String.IsNullOrWhiteSpace(ProxyUrl)
+                    ? NoProxy
+                    : new WebProxy(new Uri(ProxyUrl)) {UseDefaultCredentials = String.IsNullOrWhiteSpace(ProxyUser)};
                 if (!String.IsNullOrWhiteSpace(ProxyUser))
                 {
                     var cred = ProxyUser.Split('\\');

@@ -26,7 +26,7 @@ Listed below are available configuration parameters with their default values
         URL='protocol://server:port/path'
         Method='POST'
         Authorization='phrase token' 
-        BatchSize='0'
+        BatchSize='1'
         MaxQueueSize='2147483647'
         IgnoreSslErrors='true'
         FlushBeforeShutdown='true'
@@ -56,7 +56,7 @@ The Authorization Header value to pass.
 Number of messages to be sent together in one call separated by an empty new line
 
 #### MaxQueueSize
-Maximum number of messages awaiting to be send. Please note, that if this value is set, the logger will be blocking.
+Maximum number of messages awaiting to be send. Please note, that if this value is set, the logger might be blocking.
 
 #### IgnoreSsslErrors
 Some SSL certificates might be invalid or not-trusted.
@@ -71,7 +71,7 @@ HTTP ContentType Header value.
 HTTP Accept Header value.
 
 #### DefaultConnectionLimit
-How many connections might be used at the same time. Changes ServicePointManager.DefaultConnectionLimit if existing value is less than specified.
+How many connections might be used at the same time. Changes ServicePointManager.DefaultConnectionLimit, which might affect other parts of your system.
 
 #### Expect100Continue
 See [this article](https://docs.microsoft.com/en-us/dotnet/api/system.net.servicepointmanager.expect100continue?view=netframework-4.8).
