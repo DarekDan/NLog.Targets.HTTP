@@ -32,6 +32,7 @@ namespace UnitTests_ConfigurationAndLayout
         [Test]
         public void MakeChangeAndConfirm()
         {
+            Assert.True(_logger.IsWarnEnabled);
             var semaphore = new SemaphoreSlim(1);
             semaphore.Wait();
 
