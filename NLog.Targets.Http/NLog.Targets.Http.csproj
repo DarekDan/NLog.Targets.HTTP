@@ -13,9 +13,11 @@
     <PackageLicenseUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/LICENSE</PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>0.0.4</Version>
+    <Version>0.0.5</Version>
     <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>Version 0.0.4
+    <PackageReleaseNotes>Version 0.0.5
+- code flow optimizations
+Version 0.0.4
 - Changed Expect100Continue to the default value of true
 Version 0.0.3
 - Added support for proxy server configuration.
