@@ -97,9 +97,9 @@ namespace NLog.Targets.Http
 
         public string Accept { get; set; } = "application/json";
 
-        public int DefaultConnectionLimit { get; set; } = 2;
+        public int DefaultConnectionLimit { get; set; } = ServicePointManager.DefaultConnectionLimit;
 
-        public bool Expect100Continue { get; set; } = true;
+        public bool Expect100Continue { get; set; } = ServicePointManager.Expect100Continue;
 
         public int ConnectTimeout { get; set; } = 30000;
 
