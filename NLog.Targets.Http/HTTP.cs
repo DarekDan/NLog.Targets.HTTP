@@ -97,29 +97,9 @@ namespace NLog.Targets.Http
 
         public string Accept { get; set; } = "application/json";
 
-        public int DefaultConnectionLimit
-        {
-            get => ServicePointManager.DefaultConnectionLimit;
-            set
-            {
-                if (ServicePointManager.DefaultConnectionLimit != value)
-                {
-                    ServicePointManager.DefaultConnectionLimit = value;
-                }
-            }
-        }
+        public int DefaultConnectionLimit { get; set; } = 2;
 
-        public bool Expect100Continue
-        {
-            get => ServicePointManager.Expect100Continue;
-            set
-            {
-                if (ServicePointManager.Expect100Continue != value)
-                {
-                    ServicePointManager.Expect100Continue = value;
-                }
-            }
-        }
+        public bool Expect100Continue { get; set; } = true;
 
         public int ConnectTimeout { get; set; } = 30000;
 
@@ -181,9 +161,20 @@ namespace NLog.Targets.Http
         private bool SendFast(string message)
         {
             _conversationActiveFlag.Wait(_terminateProcessor.Token);
+            bool expect100 = ServicePointManager.Expect100Continue;
+            int connectionLimit = ServicePointManager.DefaultConnectionLimit;
+            HttpWebRequest http = null;
             try
             {
-                var http = (HttpWebRequest) WebRequest.Create(Url);
+                http = (HttpWebRequest) WebRequest.Create(Url);
+                expect100 = http.ServicePoint.Expect100Continue;
+                connectionLimit = http.ServicePoint.ConnectionLimit;
+                if (DefaultConnectionLimit > connectionLimit)
+                {
+                    http.ServicePoint.ConnectionLimit = DefaultConnectionLimit;
+                }
+
+                http.ServicePoint.Expect100Continue = Expect100Continue;
                 http.KeepAlive = false;
                 http.Method = Method;
 
@@ -237,6 +228,11 @@ namespace NLog.Targets.Http
             }
             finally
             {
+                if (http != null)
+                {
+                    http.ServicePoint.ConnectionLimit = connectionLimit;
+                    http.ServicePoint.Expect100Continue = expect100;
+                }
                 _conversationActiveFlag.Release();
             }
         }
