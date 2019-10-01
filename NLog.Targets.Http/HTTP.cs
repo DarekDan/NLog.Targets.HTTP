@@ -111,6 +111,8 @@ namespace NLog.Targets.Http
 
         public string ProxyPassword { get; set; } = String.Empty;
 
+        public bool UseNagleAlgorithm { get; set; } = true;
+
         private void ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
         {
             if (!SendFast(sb.ToString()))
@@ -162,6 +164,7 @@ namespace NLog.Targets.Http
         {
             _conversationActiveFlag.Wait(_terminateProcessor.Token);
             bool expect100 = ServicePointManager.Expect100Continue;
+            bool useNagle = ServicePointManager.UseNagleAlgorithm;
             int connectionLimit = ServicePointManager.DefaultConnectionLimit;
             HttpWebRequest http = null;
             try
@@ -169,12 +172,13 @@ namespace NLog.Targets.Http
                 http = (HttpWebRequest) WebRequest.Create(Url);
                 expect100 = http.ServicePoint.Expect100Continue;
                 connectionLimit = http.ServicePoint.ConnectionLimit;
+                useNagle = http.ServicePoint.UseNagleAlgorithm;
                 if (DefaultConnectionLimit > connectionLimit)
                 {
                     http.ServicePoint.ConnectionLimit = DefaultConnectionLimit;
                 }
-
                 http.ServicePoint.Expect100Continue = Expect100Continue;
+                http.ServicePoint.UseNagleAlgorithm = UseNagleAlgorithm;
                 http.KeepAlive = false;
                 http.Method = Method;
 
@@ -231,6 +235,7 @@ namespace NLog.Targets.Http
                 if (http != null)
                 {
                     http.ServicePoint.ConnectionLimit = connectionLimit;
+                    http.ServicePoint.UseNagleAlgorithm = useNagle;
                     http.ServicePoint.Expect100Continue = expect100;
                 }
                 _conversationActiveFlag.Release();

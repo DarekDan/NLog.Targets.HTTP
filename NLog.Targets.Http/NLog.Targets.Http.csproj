@@ -13,9 +13,12 @@
     <PackageLicenseUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/LICENSE</PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>0.0.7</Version>
+    <Version>0.0.8</Version>
     <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>Version 0.0.7
+    <PackageReleaseNotes>
+Version 0.0.8
+- added support for Nagle algorithm.
+Version 0.0.7
 - pulling default properties from ServicePointManager
 Version 0.0.6
 - switching to default properties and changing behavior only of the selected ServicePoint

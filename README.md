@@ -32,8 +32,9 @@ Listed below are available configuration parameters with their default values
         FlushBeforeShutdown='true'
         ContentType='application/json'
         Accept='application/json'
-        DefaultConnectionLimit='10'
+        DefaultConnectionLimit='2'
         Expect100Continue='false'
+        UseNagleAlgorithm='true'
         ConnectTimeout='30000' 
         InMemoryCompression='true'
         ProxyUrl=''
@@ -76,6 +77,10 @@ How many connections might be used at the same time. Changes ServicePointManager
 #### Expect100Continue
 See [this article](https://docs.microsoft.com/en-us/dotnet/api/system.net.servicepointmanager.expect100continue?view=netframework-4.8).
 
+#### UseNagleAlgorithm 
+The Nagle algorithm is used to buffer small packets of data and transmit them as a single packet. This process, referred to as "nagling," is widely used 
+because it reduces the number of packets transmitted and lowers the overhead per packet. The Nagle algorithm is fully described in IETF RFC 896.
+
 #### ConnectTimeout
 How long should the client wait to connect (default is __30__ seconds).
 
@@ -115,7 +120,8 @@ Password to use for proxy authentication.
         </attribute>
       </layout>
     </target>
-  </targets> <rules>
+  </targets>
+  <rules>
     <logger name="*" minlevel="Debug" writeTo="splunk" />
   </rules>
 </nlog>
