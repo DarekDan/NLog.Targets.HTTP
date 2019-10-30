@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -17,12 +19,15 @@ namespace NLog.Targets.Http
     public class HTTP : TargetWithLayout
     {
         private static readonly WebProxy NoProxy = new WebProxy();
+        private readonly HttpClient httpClient;
+        private readonly WebRequestHandler  handler = new WebRequestHandler();
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
 
         public HTTP()
         {
+            httpClient = new HttpClient(handler);
             var task = Task.Factory.StartNew(() =>
                 {
                     while (!_terminateProcessor.IsCancellationRequested)
@@ -163,62 +168,44 @@ namespace NLog.Targets.Http
         private bool SendFast(string message)
         {
             _conversationActiveFlag.Wait(_terminateProcessor.Token);
-            bool expect100 = ServicePointManager.Expect100Continue;
-            bool useNagle = ServicePointManager.UseNagleAlgorithm;
-            int connectionLimit = ServicePointManager.DefaultConnectionLimit;
-            HttpWebRequest http = null;
             try
             {
-                http = (HttpWebRequest) WebRequest.Create(Url);
-                expect100 = http.ServicePoint.Expect100Continue;
-                connectionLimit = http.ServicePoint.ConnectionLimit;
-                useNagle = http.ServicePoint.UseNagleAlgorithm;
-                if (DefaultConnectionLimit > connectionLimit)
-                {
-                    http.ServicePoint.ConnectionLimit = DefaultConnectionLimit;
-                }
-                http.ServicePoint.Expect100Continue = Expect100Continue;
-                http.ServicePoint.UseNagleAlgorithm = UseNagleAlgorithm;
-                http.KeepAlive = false;
-                http.Method = Method;
+                httpClient.BaseAddress = new Uri(Url);
+                httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
+                httpClient.DefaultRequestHeaders.Accept.Clear();
+                httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
+                httpClient.Timeout = TimeSpan.FromMilliseconds(ConnectTimeout);
+                httpClient.DefaultRequestHeaders.ConnectionClose = true;
 
-                http.ContentType = ContentType;
-                http.Accept = Accept;
-                http.Timeout = ConnectTimeout;
-                http.Proxy = String.IsNullOrWhiteSpace(ProxyUrl)
+                handler.UseProxy = !String.IsNullOrWhiteSpace(ProxyUrl);
+                handler.Proxy = String.IsNullOrWhiteSpace(ProxyUrl)
                     ? NoProxy
                     : new WebProxy(new Uri(ProxyUrl)) {UseDefaultCredentials = String.IsNullOrWhiteSpace(ProxyUser)};
                 if (!String.IsNullOrWhiteSpace(ProxyUser))
                 {
                     var cred = ProxyUser.Split('\\');
-                    http.Proxy.Credentials = cred.Length == 1
+                    handler.Proxy.Credentials = cred.Length == 1
                         ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
                         : new NetworkCredential {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
                 }
 
                 if (IgnoreSslErrors)
-                    http.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
-                if (!string.IsNullOrWhiteSpace(Authorization)) http.Headers.Add("Authorization", Authorization);
-
-                var bytes = Encoding.ASCII.GetBytes(message);
-                http.ContentLength = bytes.Length;
-                using (var os = http.GetRequestStream())
+                    handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
+                if (!string.IsNullOrWhiteSpace(Authorization))
                 {
-                    os.Write(bytes, 0, bytes.Length); //Push it out there
+                    httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(Authorization);
                 }
 
-                using (var response = http.GetResponseAsync())
-                {
-                    using (var sr =
-                        new StreamReader(response.Result.GetResponseStream() ?? throw new InvalidOperationException()))
-                    {
-                        //TODO What should we check for>
-                        // ReSharper disable once UnusedVariable
-                        var content = sr.ReadToEnd();
-                    }
+                //TODO
+                HttpMethod method = HttpMethod.Post;
+                HttpRequestMessage request = new HttpRequestMessage(method, string.Empty);
+                request.Content = new StringContent(message, Encoding.UTF8, ContentType);
 
-                    return !response.IsFaulted;
-                }
+                return httpClient.SendAsync(request).ContinueWith(responseTask =>
+                {
+                    HttpResponseMessage httpResponseMessage = responseTask.Result;
+                    return httpResponseMessage.IsSuccessStatusCode;
+                }).Result;
             }
             catch (WebException wex)
             {
@@ -232,12 +219,6 @@ namespace NLog.Targets.Http
             }
             finally
             {
-                if (http != null)
-                {
-                    http.ServicePoint.ConnectionLimit = connectionLimit;
-                    http.ServicePoint.UseNagleAlgorithm = useNagle;
-                    http.ServicePoint.Expect100Continue = expect100;
-                }
                 _conversationActiveFlag.Release();
             }
         }
