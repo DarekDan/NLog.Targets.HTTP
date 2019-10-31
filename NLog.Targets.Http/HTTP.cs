@@ -298,7 +298,7 @@ namespace NLog.Targets.Http
 
         private HttpMethod GetHttpMethodsToUseOrDefault()
         {
-            return AvailableHttpMethods[Method] ?? HttpMethod.Post;
+            return AvailableHttpMethods[Method.ToLower()] ?? HttpMethod.Post;
         }
 
         private AuthenticationHeaderValue GetAuthorizationHeader()
