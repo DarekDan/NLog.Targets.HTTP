@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;net462;net472;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
     <Description>A NLog target for Http</Description>
     <Authors>Dariusz Danielewski and Stan Smith</Authors>
@@ -13,9 +13,12 @@
     <PackageLicenseUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/LICENSE</PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <ApplicationIcon>nlog.ico</ApplicationIcon>    
     <PackageReleaseNotes>
+Version 1.0.1
+- Refactored for a single HttpClient as HttpWebRequest was creating too many connection in TIMED_WAIT state under load.
+- Upgraded .Net Standard to 2.1 and introduced support for Core 3.0 and Framework 4.8
 Version 1.0.0
 - Official release
 Version 0.0.8
@@ -42,12 +45,19 @@ Version 0.0.1
   <!--common NuGet package refs -->
   <ItemGroup>
     <PackageReference Include="NLog" Version="4.6.7" />
+    <PackageReference Include="System.Net.Http" Version="4.3.4"/>
   </ItemGroup>
 
-  <!--.NET Standard 2.0 config -->
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <AssemblyTitle>NLog.Targets.Http .NET Standard 2.0</AssemblyTitle>
-    <DefineConstants>NETCORE;NETSTANDARD</DefineConstants>
+  <!--.NET Standard 2.1 config -->
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
+    <AssemblyTitle>NLog.Targets.Http .NET Standard 2.1</AssemblyTitle>
+    <DefineConstants>NETSTANDARD21</DefineConstants>
+  </PropertyGroup>
+
+  <!--.NET Core 3.0 config -->
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp3.0' ">
+    <AssemblyTitle>NLog.Targets.Http .NET Core 3.0</AssemblyTitle>
+    <DefineConstants>NETCORE30</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.5 config -->
@@ -68,12 +78,17 @@ Version 0.0.1
     <DefineConstants>NETFULL</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net462' ">
+  <!-- .NET 4.8 config -->
+  <PropertyGroup Condition=" '$(TargetFramework)'=='net48' ">
+    <AssemblyTitle>NLog.Targets.Http .NET 4.8</AssemblyTitle>
+    <DefineConstants>NETFULL</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Net.Http" />
     <Reference Include="System.Net.Http.WebRequest" />
   </ItemGroup>
   

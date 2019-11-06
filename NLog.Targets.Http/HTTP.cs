@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Security;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -31,7 +32,13 @@ namespace NLog.Targets.Http
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
         private bool _expect100Continue = ServicePointManager.Expect100Continue;
+#if NETCORE30
+        private SocketsHttpHandler _handler;
+#elif NETSTANDARD21
+        private HttpClientHandler _handler;
+#else
         private WebRequestHandler _handler;
+#endif
         private HttpClient _httpClient;
         private bool _ignoreSslErrors = true;
 
@@ -319,7 +326,13 @@ namespace NLog.Targets.Http
             if (_propertiesChanged.Any())
                 lock (_propertiesChanged)
                 {
+#if NETCORE30
+                    _handler = new SocketsHttpHandler{UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl)};
+#elif NETSTANDARD21
+                    _handler= new HttpClientHandler();
+#else
                     _handler = new WebRequestHandler {UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl)};
+#endif
                     _httpClient = new HttpClient(_handler)
                     {
                         BaseAddress = new Uri(Url), Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
@@ -347,8 +360,13 @@ namespace NLog.Targets.Http
                     if (!string.IsNullOrWhiteSpace(Authorization))
                         _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
                     if (IgnoreSslErrors)
+#if NETCORE30
+                        _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback = (sender, certificate, chain, errors) => true};
+#elif NETSTANDARD21
+                        _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors)=>true;
+#else
                         _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
-
+#endif
                     _propertiesChanged.Clear();
                 }
         }
