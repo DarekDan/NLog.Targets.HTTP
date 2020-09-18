@@ -2,9 +2,13 @@
 
 [![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/NLog.Targets.HTTP)](https://www.nuget.org/packages/NLog.Targets.HTTP)
 
-NLog.Targets.HTTP is a HTTP POST target for NLog. 
-Combined with JSON formatter it can be used to send events to an 
+NLog.Targets.HTTP is an HTTP POST target for NLog. 
+When combined with JSON formatter it can be used to send events to an 
 instance of Splunk and other HTTP based collectors.
+
+This target is inherently asynchronous, with performance on par or better than with the AsyncWrapper. [Remember to Flush](https://github.com/NLog/NLog/wiki/Tutorial#5-remember-to-flush) and to give it enough time to complete. 
+
+Note that the `async="true"` attribute applied to `<targets >` will [discard by default](https://github.com/NLog/NLog/wiki/AsyncWrapper-target#async-attribute-will-discard-by-default).
 
 ## Getting started
 Add the library as an extension to nlog:
@@ -19,7 +23,7 @@ Add the library as an extension to nlog:
 ```
 
 ### Available Configuration Parameters
-Listed below are available configuration parameters with their default values
+Listed below are available configuration parameters with their default values (where applicable)
 ```xml
 <target name='target name' 
         type='HTTP' 
@@ -41,7 +45,6 @@ Listed below are available configuration parameters with their default values
         ProxyUser=''
         ProxyPassword=''
     >
-
 ```
 
 #### URL
@@ -57,13 +60,14 @@ The Authorization Header value to pass.
 Number of messages to be sent together in one call separated by an empty new line
 
 #### MaxQueueSize
-Maximum number of messages awaiting to be send. Please note, that if this value is set, the logger might be blocking.
+Maximum number of messages awaiting to be send. Please note, that if this value is set too low, the logger might be blocking.
 
 #### IgnoreSsslErrors
 Some SSL certificates might be invalid or not-trusted.
 
 #### FlushBeforeShutdown
-Force all messages to be delivered before shutting down. 
+Force all messages to be delivered before shutting down. Note  that by design .Net apps are limited to about 2 seconds to shutdown.  
+Make sure you leverage `LogManager.Flush(TimeSpan.FromHours(24))` in most extreme scenarios. 
 
 #### ContentType
 HTTP ContentType Header value.
@@ -72,7 +76,8 @@ HTTP ContentType Header value.
 HTTP Accept Header value.
 
 #### DefaultConnectionLimit
-How many connections might be used at the same time. Changes ServicePointManager.DefaultConnectionLimit, which might affect other parts of your system.
+How many connections might be used at the same time. Changes ServicePointManager.DefaultConnectionLimit, which might affect other parts of your system. 
+Performance improvement was noticeable even with 16 connections, but your application might require more for other functionality. Use with caution.
 
 #### Expect100Continue
 See [this article](https://docs.microsoft.com/en-us/dotnet/api/system.net.servicepointmanager.expect100continue?view=netframework-4.8).
@@ -85,7 +90,7 @@ because it reduces the number of packets transmitted and lowers the overhead per
 How long should the client wait to connect (default is __30__ seconds).
 
 #### InMemoryCompression
-Reduces the amount of memory consumed at the expense of increased CPU usage.
+Reduces the amount of memory consumed at the expense of increased CPU usage. As much as 100% performance improvement can be achieved by setting this to `false`. 
 
 #### ProxyUrl
 Designates a proxy server to use. Must include protocol (http|https) and port
@@ -103,8 +108,9 @@ Password to use for proxy authentication.
 <nlog xmlns="http://www.nlog-project.org/schemas/NLog.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" >
   <targets>
     <target name='splunk' 
-            type='HTTP' URL='server:port/services/collector'
-            Authorization='Splunk auth-token' 
+            type='HTTP' 
+            URL='https://localhost:8088/services/collector/event'
+            Authorization='Splunk d758f3fa-740f-4bb7-96be-3da4128708bc' 
             BatchSize='100'>
       <layout type='JsonLayout'>
         <attribute name='sourcetype' layout='_json' />
@@ -127,3 +133,9 @@ Password to use for proxy authentication.
 </nlog>
 ```
 
+
+### Sample stats
+On a Lenovo Xeon E3-1505M v6 powered laptop with 64GB of RAM and 3GB/s NVMe storage, 
+this HTTP target was able to clock almost 77,000 accepted messages per second, 
+and over 31,000 per second received and processed by local Dockerized Splunk Enterpise 8.0.6.
+ 

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.779
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30503.244
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NLog.Targets.Http", "NLog.Targets.Http\NLog.Targets.Http.csproj", "{849E3E42-2824-482A-8A81-1315BB128514}"
 EndProject
@@ -16,6 +16,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		LICENSE = LICENSE
 		README.md = README.md
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NLog.Target.Http.ProfilerShell", "NLog.Target.Http.ProfilerShell\NLog.Target.Http.ProfilerShell.csproj", "{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,6 +37,10 @@ Global
 		{01800BEB-E723-49C5-8DEF-05FAB90A6128}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{01800BEB-E723-49C5-8DEF-05FAB90A6128}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{01800BEB-E723-49C5-8DEF-05FAB90A6128}.Release|Any CPU.Build.0 = Release|Any CPU
+		{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

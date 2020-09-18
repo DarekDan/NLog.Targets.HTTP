@@ -17,16 +17,18 @@ namespace UnitTests_ConfigurationAndLayout
         [OneTimeTearDown]
         public void TestShutdown()
         {
-            LogManager.Flush();
+            LogManager.Flush(TimeSpan.FromHours(1));
             LogManager.Shutdown();
         }
 
         private ILogger _logger;
+        private readonly Guid _guid = Guid.NewGuid();
 
         [Test]
         public void LoadTest()
         {
-            Parallel.For(0, 100, i => _logger.Info($"{i} at {DateTime.Now}"));
+            Parallel.For(0, 1000000, i => _logger.Info($"{_guid} {i} at {DateTime.Now}"));
+            NLog.Common.InternalLogger.Debug(_guid.ToString());
         }
 
         [Test]
