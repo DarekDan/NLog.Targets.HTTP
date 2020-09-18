@@ -3,19 +3,23 @@
   <PropertyGroup>
     <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
-    <Description>A NLog target for Http</Description>
-    <Authors>Dariusz Danielewski and Stan Smith</Authors>
+    <Description>An NLog target for Http log entries submission (works wih Splunk HEC)</Description>
+    <Authors>Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
     <CurrentYear>$([System.DateTime]::Now.ToString(yyyy))</CurrentYear>
-    <Copyright>Copyright (c) $(CurrentYear) Dariusz Danielewski and Stan Smith, Copyright 2013-2015 Splunk, Inc. </Copyright>
+    <Copyright>Copyright (c) 2020 Dariusz Danielewski, Stan Smith and Julian Verdurmen, Copyright 2013-2020 Splunk, Inc.</Copyright>
     <PackageTags>nlog;nlog-target;splunk;logging</PackageTags>
     <PackageIconUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/nlog.ico</PackageIconUrl>
     <PackageProjectUrl>https://github.com/DarekDan/NLog.Targets.HTTP</PackageProjectUrl>
-    <PackageLicenseUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/LICENSE</PackageLicenseUrl>
+    <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>
+    <PackageReleaseNotes>Version 1.0.2
+- minor performance improvements
+- code refactoring
+- updated documentation
+- sample command-line app for code profiling
 Version 1.0.1
 - Refactored for a single HttpClient as HttpWebRequest was creating too many connection in TIMED_WAIT state under load.
 - Upgraded .Net Standard to 2.1 and introduced support for Core 3.0 and Framework 4.8
@@ -39,7 +43,8 @@ Version 0.0.2
 Version 0.0.1
 - Big thanks to Stan Smith for insiting to make it lean and performant.
 - First publish to NuGet.
-    </PackageReleaseNotes>
+</PackageReleaseNotes>    
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <!--common NuGet package refs -->
