@@ -5,13 +5,15 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Security;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
+#if (NETCORE30 || NETSTANDARD21)
+using System.Net.Security;
+#endif
 
 namespace NLog.Targets.Http
 {
@@ -48,48 +50,6 @@ namespace NLog.Targets.Http
         private string _proxyUser = string.Empty;
         private string _url;
 
-        public HTTP()
-        {
-            var task = Task.Factory.StartNew(() =>
-                {
-                    while (!_terminateProcessor.IsCancellationRequested)
-                    {
-                        var counter = 0;
-                        var sb = new StringBuilder();
-                        var stack = new List<StrongBox<byte[]>>();
-                        while (!_taskQueue.IsEmpty)
-                        {
-                            if (_taskQueue.TryDequeue(out var message))
-                            {
-                                ++counter;
-                                sb.AppendLine(InMemoryCompression
-                                    ? Utility.Unzip(message.Value)
-                                    : Encoding.UTF8.GetString(message.Value));
-                                stack.Add(message);
-                                if (!_taskQueue.IsEmpty)
-                                    sb.AppendLine();
-                                // ReSharper disable once RedundantAssignment
-                                message = null; //needed to reduce stress on memory 
-                            }
-
-                            if (counter == BatchSize)
-                            {
-                                ProcessChunk(sb, stack);
-                                sb.Clear();
-                                stack.Clear();
-                                counter = 0;
-                            }
-                        }
-
-                        if (sb.Length > 0)
-                            ProcessChunk(sb, stack);
-                        Thread.Sleep(1);
-                    }
-                }, _terminateProcessor.Token, TaskCreationOptions.None,
-                TaskScheduler.Default);
-            while (task.Status != TaskStatus.Running) Thread.Sleep(1);
-        }
-
         /// <summary>
         ///     URL to Post to
         /// </summary>
@@ -112,11 +72,9 @@ namespace NLog.Targets.Http
             get => _authorization;
             set
             {
-                if (value != _authorization)
-                {
-                    _authorization = value;
-                    NotifyPropertyChanged(nameof(Authorization));
-                }
+                if (value == _authorization) return;
+                _authorization = value;
+                NotifyPropertyChanged(nameof(Authorization));
             }
         }
 
@@ -125,11 +83,9 @@ namespace NLog.Targets.Http
             get => _ignoreSslErrors;
             set
             {
-                if (value != _ignoreSslErrors)
-                {
-                    _ignoreSslErrors = value;
-                    NotifyPropertyChanged(nameof(IgnoreSslErrors));
-                }
+                if (value == _ignoreSslErrors) return;
+                _ignoreSslErrors = value;
+                NotifyPropertyChanged(nameof(IgnoreSslErrors));
             }
         }
 
@@ -227,21 +183,66 @@ namespace NLog.Targets.Http
                 stack.ForEach(s => _taskQueue.Enqueue(s));
         }
 
+        protected override void InitializeTarget()
+        {
+            base.InitializeTarget();
+            var task = Task.Factory.StartNew(() =>
+                {
+                    var sb = new StringBuilder();
+                    var stack = new List<StrongBox<byte[]>>();
+                    while (!_terminateProcessor.IsCancellationRequested)
+                    {
+                        var counter = 0;
+                        sb.Clear();
+                        stack.Clear();
+                        while (!_taskQueue.IsEmpty)
+                        {
+                            if (_taskQueue.TryDequeue(out var message))
+                            {
+                                ++counter;
+                                sb.AppendLine(InMemoryCompression
+                                    ? Utility.Unzip(message.Value)
+                                    : Encoding.UTF8.GetString(message.Value));
+                                stack.Add(message);
+                                if (!_taskQueue.IsEmpty)
+                                    sb.AppendLine();
+                                // ReSharper disable once RedundantAssignment
+                                message = null; //needed to reduce stress on memory 
+                            }
+
+                            if (counter == BatchSize)
+                            {
+                                ProcessChunk(sb, stack);
+                                sb.Clear();
+                                stack.Clear();
+                                counter = 0;
+                            }
+                        }
+
+                        if (sb.Length > 0)
+                            ProcessChunk(sb, stack);
+                        Thread.Sleep(1);
+                    }
+                }, _terminateProcessor.Token, TaskCreationOptions.None,
+                TaskScheduler.Default);
+            while (task.Status != TaskStatus.Running) Thread.Sleep(1);
+        }
+
         protected override void CloseTarget()
         {
             if (FlushBeforeShutdown)
-                ProcessCurrentMessages();
+                AwaitCurrentMessagesToProcess();
             _terminateProcessor.Cancel(false);
             base.CloseTarget();
         }
 
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
-            ProcessCurrentMessages();
+            AwaitCurrentMessagesToProcess();
             base.FlushAsync(asyncContinuation);
         }
 
-        private void ProcessCurrentMessages()
+        private void AwaitCurrentMessagesToProcess()
         {
             // If there are messages to be processed
             // or no flags available 
@@ -251,7 +252,12 @@ namespace NLog.Targets.Http
 
         protected override void Write(LogEventInfo logEvent)
         {
-            while (_taskQueue.Count > MaxQueueSize) ProcessCurrentMessages();
+            SafeEnqueue(logEvent);
+        }
+
+        private void SafeEnqueue(LogEventInfo logEvent)
+        {
+            while (_taskQueue.Count >= MaxQueueSize) AwaitCurrentMessagesToProcess();
             _taskQueue.Enqueue(new StrongBox<byte[]>
             {
                 Value = InMemoryCompression
@@ -323,52 +329,56 @@ namespace NLog.Targets.Http
 
         private void ResetHttpClientIfNeeded()
         {
-            if (_propertiesChanged.Any())
-                lock (_propertiesChanged)
-                {
+            if (!_propertiesChanged.Any()) return;
+            lock (_propertiesChanged)
+            {
+                // ReSharper disable once UseObjectOrCollectionInitializer
 #if NETCORE30
-                    _handler = new SocketsHttpHandler{UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl)};
+                    _handler = new SocketsHttpHandler();
 #elif NETSTANDARD21
-                    _handler= new HttpClientHandler();
+                    _handler = new HttpClientHandler();
 #else
-                    _handler = new WebRequestHandler {UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl)};
+                _handler = new WebRequestHandler();
 #endif
-                    _httpClient = new HttpClient(_handler)
-                    {
-                        BaseAddress = new Uri(Url), Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
-                    };
-                    _httpClient.DefaultRequestHeaders.ConnectionClose = true;
+                _handler.UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl);
+                _httpClient = new HttpClient(_handler)
+                {
+                    BaseAddress = new Uri(Url), Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
+                };
+                _httpClient.DefaultRequestHeaders.ConnectionClose = true;
 
-                    _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
-                    _httpClient.DefaultRequestHeaders.Accept.Clear();
-                    _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
+                _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
+                _httpClient.DefaultRequestHeaders.Accept.Clear();
+                _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
-                    if (_handler.UseProxy)
+                if (_handler.UseProxy)
+                {
+                    var useDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser);
+                    _handler.Proxy = new WebProxy(new Uri(ProxyUrl))
+                        {UseDefaultCredentials = useDefaultCredentials};
+                    if (!useDefaultCredentials)
                     {
-                        _handler.Proxy = new WebProxy(new Uri(ProxyUrl))
-                            {UseDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser)};
-                        if (!string.IsNullOrWhiteSpace(ProxyUser))
-                        {
-                            var cred = ProxyUser.Split('\\');
-                            _handler.Proxy.Credentials = cred.Length == 1
-                                ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
-                                : new NetworkCredential
-                                    {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
-                        }
+                        var cred = ProxyUser.Split('\\');
+                        _handler.Proxy.Credentials = cred.Length == 1
+                            ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
+                            : new NetworkCredential
+                                {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
                     }
+                }
 
-                    if (!string.IsNullOrWhiteSpace(Authorization))
-                        _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
-                    if (IgnoreSslErrors)
+                if (!string.IsNullOrWhiteSpace(Authorization))
+                    _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
+                if (IgnoreSslErrors)
 #if NETCORE30
-                        _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback = (sender, certificate, chain, errors) => true};
+                        _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
+ (sender, certificate, chain, errors) => true};
 #elif NETSTANDARD21
                         _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors)=>true;
 #else
-                        _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
+                    _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
 #endif
-                    _propertiesChanged.Clear();
-                }
+                _propertiesChanged.Clear();
+            }
         }
     }
 }
