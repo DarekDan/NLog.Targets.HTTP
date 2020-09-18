@@ -11,7 +11,7 @@ namespace NLog.Target.Http.ProfilerShell
             ILogger _logger = LogManager.GetCurrentClassLogger();
             var _guid = Guid.NewGuid();
             InternalLogger.Info("Starting");
-            Parallel.For(0, 100000, i => _logger.Info($"{_guid} {i} at {DateTime.Now}"));
+            Parallel.For(0, 1000000, i => _logger.Info($"{_guid} {i} at {DateTime.Now}"));
             InternalLogger.Info($"Finished {_guid}");
             LogManager.Flush(TimeSpan.FromHours(1));
             LogManager.Shutdown();
