@@ -103,6 +103,9 @@ Password to use for proxy authentication.
 
 ## UnixTimeLayoutRenderer
 The "Unix Time" renderer supports `universalTime` option (boolean), just like the date renderer does.
+```xml
+<attribute name='unixutc' layout='${unixtime:universalTime=true}' />
+```
 
 ## Sample SPLUNK Configuration
 
