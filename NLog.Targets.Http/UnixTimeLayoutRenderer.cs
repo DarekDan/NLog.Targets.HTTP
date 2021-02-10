@@ -10,6 +10,7 @@ namespace NLog.Targets.Http
         /// <summary>
         /// Convert to UTC
         /// </summary>
+        // ReSharper disable once MemberCanBePrivate.Global
         public bool UniversalTime { get; set; }
 
         protected override void Append(StringBuilder builder, LogEventInfo logEvent)
