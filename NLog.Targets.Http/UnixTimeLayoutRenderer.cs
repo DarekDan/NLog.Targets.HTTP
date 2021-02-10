@@ -7,9 +7,14 @@ namespace NLog.Targets.Http
     [LayoutRenderer("unixtime")]
     public class UnixTimeLayoutRenderer : LayoutRenderer
     {
+        /// <summary>
+        /// Convert to UTC
+        /// </summary>
+        public bool UniversalTime { get; set; }
+
         protected override void Append(StringBuilder builder, LogEventInfo logEvent)
         {
-            var cd = logEvent.TimeStamp;
+            var cd = UniversalTime ? logEvent.TimeStamp.ToUniversalTime() : logEvent.TimeStamp;
             builder.Append($"{cd.Ticks / 10000000L - 62135596800L}.{cd.Millisecond:000}");
         }
     }

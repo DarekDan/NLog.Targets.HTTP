@@ -101,7 +101,10 @@ If proxy authentication is needed, you can specify it with a domain prefix, i.e.
 #### ProxyPassword
 Password to use for proxy authentication.
 
-### Sample SPLUNK Configuration
+## UnixTimeLayoutRenderer
+The "Unix Time" renderer supports `universalTime` option (boolean), just like the date renderer does.
+
+## Sample SPLUNK Configuration
 
 ```xml
 <?xml version="1.0" encoding="utf-8" ?>

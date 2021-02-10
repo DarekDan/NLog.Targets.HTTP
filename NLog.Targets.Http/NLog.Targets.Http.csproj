@@ -13,9 +13,12 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>Version 1.0.2
+    <PackageReleaseNotes>Version 1.0.3
+- Updated to latest NLog version
+- Added universalTime option to unixtime renderer
+Version 1.0.2
 - minor performance improvements
 - code refactoring
 - updated documentation
@@ -44,12 +47,15 @@ Version 0.0.1
 - Big thanks to Stan Smith for insiting to make it lean and performant.
 - First publish to NuGet.
 </PackageReleaseNotes>    
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>    
+    <SignAssembly>false</SignAssembly>    
+    <AssemblyOriginatorKeyFile>NuGet.pfx</AssemblyOriginatorKeyFile>    
+    <DelaySign>false</DelaySign>
   </PropertyGroup>
 
   <!--common NuGet package refs -->
   <ItemGroup>
-    <PackageReference Include="NLog" Version="4.7.4" />
+    <PackageReference Include="NLog" Version="4.7.7" />
     <PackageReference Include="System.Net.Http" Version="4.3.4" />
   </ItemGroup>
 
