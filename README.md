@@ -51,7 +51,7 @@ Listed below are available configuration parameters with their default values (w
 The URL to send messages to (mandatory)
 
 #### Method
-HTTP method to use (GET,__POST__,PUT, etc.)
+HTTP method to use (GET,__POST__)
 
 #### Authorization
 The Authorization Header value to pass.
