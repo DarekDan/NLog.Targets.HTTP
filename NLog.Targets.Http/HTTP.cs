@@ -11,7 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
-#if (NETCORE30 || NETSTANDARD21)
+#if (NETCORE30 || NETSTANDARD21 || NET5_0 || NETCOREAPP3_1)
 using System.Net.Security;
 #endif
 
@@ -34,7 +34,7 @@ namespace NLog.Targets.Http
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
         private bool _expect100Continue = ServicePointManager.Expect100Continue;
-#if NETCORE30
+#if (NETCORE30 || NET5_0 || NETCOREAPP3_1)
         private SocketsHttpHandler _handler;
 #elif NETSTANDARD21
         private HttpClientHandler _handler;
@@ -333,7 +333,7 @@ namespace NLog.Targets.Http
             lock (_propertiesChanged)
             {
                 // ReSharper disable once UseObjectOrCollectionInitializer
-#if NETCORE30
+#if (NETCORE30 || NET5_0 || NETCOREAPP3_1)
                     _handler = new SocketsHttpHandler();
 #elif NETSTANDARD21
                     _handler = new HttpClientHandler();
@@ -369,7 +369,7 @@ namespace NLog.Targets.Http
                 if (!string.IsNullOrWhiteSpace(Authorization))
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
                 if (IgnoreSslErrors)
-#if NETCORE30
+#if (NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1)
                         _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
  (sender, certificate, chain, errors) => true};
 #elif NETSTANDARD21
