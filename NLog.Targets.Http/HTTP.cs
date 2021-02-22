@@ -28,6 +28,8 @@ namespace NLog.Targets.Http
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
+        private readonly StringBuilder builder = new StringBuilder();
+        private CancellationTokenSource _flushTokenSource = new CancellationTokenSource();
         private string _accept = "application/json";
         private string _authorization;
 
@@ -43,12 +45,18 @@ namespace NLog.Targets.Http
 #endif
         private HttpClient _httpClient;
         private bool _ignoreSslErrors = true;
+        private bool hasHttpError;
 
         private int _maxQueueSize = int.MaxValue;
         private string _proxyPassword = string.Empty;
         private string _proxyUrl = string.Empty;
         private string _proxyUser = string.Empty;
         private string _url;
+
+        /// <summary>
+        /// Invoked when the application is unable to flush due to a HTTP related error.
+        /// </summary>
+        public static event EventHandler<FlushErrorEventArgs> FlushError;
 
         /// <summary>
         ///     URL to Post to
@@ -90,6 +98,13 @@ namespace NLog.Targets.Http
         }
 
         public bool FlushBeforeShutdown { get; set; } = true;
+
+        /// <summary>
+        /// The timeout between attempted HTTP requests.
+        /// </summary>
+        public int HttpErrorRetryTimeout { get; set; } = 500;
+
+        public bool Keepalive { get; set; }
 
         public int BatchSize
         {
@@ -177,55 +192,88 @@ namespace NLog.Targets.Http
 
         [Obsolete] public bool UseNagleAlgorithm { get; set; } = true;
 
-        private void ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
+        private async Task ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
         {
-            if (!SendFast(sb.ToString()))
+            if (!await SendFast(sb.ToString()).ConfigureAwait(false))
                 stack.ForEach(s => _taskQueue.Enqueue(s));
         }
 
         protected override void InitializeTarget()
         {
             base.InitializeTarget();
-            var task = Task.Factory.StartNew(() =>
+            var token = _terminateProcessor.Token;
+            _ = Task.Run(() => Start(token), token);
+        }
+
+        private async Task Start(CancellationToken cancellationToken)
+        {
+            var stack = new List<StrongBox<byte[]>>();
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                builder.Clear();
+                stack.Clear();
+                var flushToken = _flushTokenSource.Token;
+                BuildChunk(stack, flushToken);
+
+                if (builder.Length > 0)
                 {
-                    var sb = new StringBuilder();
-                    var stack = new List<StrongBox<byte[]>>();
-                    while (!_terminateProcessor.IsCancellationRequested)
+                    if (flushToken.IsCancellationRequested && hasHttpError)
                     {
-                        var counter = 0;
-                        sb.Clear();
-                        stack.Clear();
-                        while (!_taskQueue.IsEmpty)
+                        try
                         {
-                            if (_taskQueue.TryDequeue(out var message))
-                            {
-                                ++counter;
-                                sb.AppendLine(InMemoryCompression
-                                    ? Utility.Unzip(message.Value)
-                                    : Encoding.UTF8.GetString(message.Value));
-                                stack.Add(message);
-                                if (!_taskQueue.IsEmpty)
-                                    sb.AppendLine();
-                                // ReSharper disable once RedundantAssignment
-                                message = null; //needed to reduce stress on memory 
-                            }
-
-                            if (counter == BatchSize)
-                            {
-                                ProcessChunk(sb, stack);
-                                sb.Clear();
-                                stack.Clear();
-                                counter = 0;
-                            }
+                            _conversationActiveFlag.Wait(_terminateProcessor.Token);
+                            var delay = Task.Delay(1, CancellationToken.None);
+                            FlushError?.Invoke(this, new FlushErrorEventArgs(builder.ToString()));
+                            await delay; // ensure semaphore is entered for at least 1ms for flush detection.
                         }
-
-                        if (sb.Length > 0)
-                            ProcessChunk(sb, stack);
-                        Thread.Sleep(1);
+                        finally
+                        {
+                            _conversationActiveFlag.Release();
+                        }
                     }
-                }, _terminateProcessor.Token, TaskCreationOptions.None,
-                TaskScheduler.Default);
-            while (task.Status != TaskStatus.Running) Thread.Sleep(1);
+                    else
+                    {
+                        await ProcessChunk(builder, stack).ConfigureAwait(false);
+
+                        if (hasHttpError)
+                        {
+                            try
+                            {
+                                // Reduce stress
+                                await Task.Delay(HttpErrorRetryTimeout, flushToken).ConfigureAwait(false);
+                            }
+                            catch (TaskCanceledException) { }
+                        }
+                    }
+                }
+
+                await Task.Delay(1, cancellationToken);
+            }
+        }
+
+        private void BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
+        {
+            int counter = 0;
+            while (!_taskQueue.IsEmpty)
+            {
+                if (_taskQueue.TryDequeue(out var message))
+                {
+                    ++counter;
+                    builder.AppendLine(InMemoryCompression
+                        ? Utility.Unzip(message.Value)
+                        : Encoding.UTF8.GetString(message.Value));
+                    stack.Add(message);
+                    if (!_taskQueue.IsEmpty)
+                        builder.AppendLine();
+                    // ReSharper disable once RedundantAssignment
+                    message = null; //needed to reduce stress on memory 
+                }
+
+                if (counter == BatchSize && !flushToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
         }
 
         protected override void CloseTarget()
@@ -247,7 +295,10 @@ namespace NLog.Targets.Http
             // If there are messages to be processed
             // or no flags available 
             // just wait
+            _flushTokenSource.Cancel(false);
             while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
+            _flushTokenSource.Dispose();
+            _flushTokenSource = new CancellationTokenSource();
         }
 
         protected override void Write(LogEventInfo logEvent)
@@ -274,28 +325,39 @@ namespace NLog.Targets.Http
         ///     <value>true</value>
         ///     if succeeded
         /// </returns>
-        private bool SendFast(string message)
+        private async Task<bool> SendFast(string message)
         {
             _conversationActiveFlag.Wait(_terminateProcessor.Token);
             try
             {
                 ResetHttpClientIfNeeded();
-
                 var method = GetHttpMethodsToUseOrDefault();
                 var request = new HttpRequestMessage(method, string.Empty)
                 {
-                    Content = new StringContent(message, Encoding.UTF8, ContentType)
+                    Content = new StringContent(message, Encoding.UTF8, ContentType),
+                    Keepalive = Keepalive
                 };
 
-                return _httpClient.SendAsync(request).ContinueWith(responseTask =>
+
+                var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
+                if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
                 {
-                    var httpResponseMessage = responseTask.Result;
-                    return httpResponseMessage.IsSuccessStatusCode;
-                }).Result;
+                    // We should respect 429.
+                    await Task.Delay(7500).ConfigureAwait(false);
+                }
+
+                var isSuccess = httpResponseMessage.IsSuccessStatusCode;
+                hasHttpError = !isSuccess;
+                return isSuccess;
             }
-            catch (WebException wex)
+            catch (WebException)
             {
-                InternalLogger.Warn(wex, "Failed to communicate over HTTP");
+                hasHttpError = true;
+                return false;
+            }
+            catch (HttpRequestException)
+            {
+                hasHttpError = true;
                 return false;
             }
             catch (Exception ex)
@@ -343,11 +405,16 @@ namespace NLog.Targets.Http
                 _handler.UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl);
                 _httpClient = new HttpClient(_handler)
                 {
-                    BaseAddress = new Uri(Url), Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
+                    BaseAddress = new Uri(Url),
+                    Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
                 };
-                _httpClient.DefaultRequestHeaders.ConnectionClose = true;
 
-                _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
+                if (!Keepalive)
+                {
+                    _httpClient.DefaultRequestHeaders.ConnectionClose = true;
+                    _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
+                }
+
                 _httpClient.DefaultRequestHeaders.Accept.Clear();
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
@@ -355,20 +422,23 @@ namespace NLog.Targets.Http
                 {
                     var useDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser);
                     _handler.Proxy = new WebProxy(new Uri(ProxyUrl))
-                        {UseDefaultCredentials = useDefaultCredentials};
+                    { UseDefaultCredentials = useDefaultCredentials };
                     if (!useDefaultCredentials)
                     {
                         var cred = ProxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
-                            ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
+                            ? new NetworkCredential { UserName = ProxyUser, Password = ProxyPassword }
                             : new NetworkCredential
-                                {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
+                            { Domain = cred[0], UserName = cred[1], Password = ProxyPassword };
                     }
                 }
 
                 if (!string.IsNullOrWhiteSpace(Authorization))
+                {
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
+                }
                 if (IgnoreSslErrors)
+
 #if (NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1)
                         _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
  (sender, certificate, chain, errors) => true};
@@ -376,7 +446,9 @@ namespace NLog.Targets.Http
                         _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors)=>true;
 #else
                     _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
-#endif
+#endif                
+                }
+
                 _propertiesChanged.Clear();
             }
         }
