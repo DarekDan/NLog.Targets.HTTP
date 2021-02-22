@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.0</TargetFrameworks>
+    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.0;netcoreapp3.1;net5.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
     <Description>An NLog target for Http log entries submission (works wih Splunk HEC)</Description>
     <Authors>Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
@@ -13,9 +13,15 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.2</Version>
+    <Version>1.0.4</Version>
     <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>Version 1.0.2
+    <PackageReleaseNotes>Version 1.0.4
+- Signed assemblies
+- Added packaging for .Net Core 3.1 and .Net 5.0
+Version 1.0.3
+- Updated to latest NLog version
+- Added universalTime option to unixtime renderer
+Version 1.0.2
 - minor performance improvements
 - code refactoring
 - updated documentation
@@ -44,12 +50,15 @@ Version 0.0.1
 - Big thanks to Stan Smith for insiting to make it lean and performant.
 - First publish to NuGet.
 </PackageReleaseNotes>    
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>    
+    <SignAssembly>true</SignAssembly>    
+    <AssemblyOriginatorKeyFile>DarekDan.snk</AssemblyOriginatorKeyFile>    
+    <DelaySign>false</DelaySign>
   </PropertyGroup>
 
   <!--common NuGet package refs -->
   <ItemGroup>
-    <PackageReference Include="NLog" Version="4.7.6" />
+    <PackageReference Include="NLog" Version="4.7.7" />
     <PackageReference Include="System.Net.Http" Version="4.3.4" />
   </ItemGroup>
 

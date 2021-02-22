@@ -51,7 +51,7 @@ Listed below are available configuration parameters with their default values (w
 The URL to send messages to (mandatory)
 
 #### Method
-HTTP method to use (GET,__POST__,PUT, etc.)
+HTTP method to use (GET,__POST__)
 
 #### Authorization
 The Authorization Header value to pass.
@@ -101,7 +101,13 @@ If proxy authentication is needed, you can specify it with a domain prefix, i.e.
 #### ProxyPassword
 Password to use for proxy authentication.
 
-### Sample SPLUNK Configuration
+## UnixTimeLayoutRenderer
+The "Unix Time" renderer supports `universalTime` option (boolean), just like the date renderer does.
+```xml
+<attribute name='unixutc' layout='${unixtime:universalTime=true}' />
+```
+
+## Sample SPLUNK Configuration
 
 ```xml
 <?xml version="1.0" encoding="utf-8" ?>
