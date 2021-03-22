@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
+using NLog.Layouts;
 #if (NETCORE30 || NETSTANDARD21 || NET5_0 || NETCOREAPP3_1)
 using System.Net.Security;
 #endif
@@ -51,7 +52,7 @@ namespace NLog.Targets.Http
         private string _proxyPassword = string.Empty;
         private string _proxyUrl = string.Empty;
         private string _proxyUser = string.Empty;
-        private string _url;
+        private Layout _url;
 
         /// <summary>
         /// Invoked when the application is unable to flush due to a HTTP related error.
@@ -62,7 +63,7 @@ namespace NLog.Targets.Http
         ///     URL to Post to
         /// </summary>
         [RequiredParameter]
-        public string Url
+        public Layout Url
         {
             get => _url;
             set
@@ -405,7 +406,7 @@ namespace NLog.Targets.Http
                 _handler.UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl);
                 _httpClient = new HttpClient(_handler)
                 {
-                    BaseAddress = new Uri(Url),
+                    BaseAddress = new Uri(Url.Render(LogEventInfo.CreateNullEvent())),
                     Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
                 };
 
