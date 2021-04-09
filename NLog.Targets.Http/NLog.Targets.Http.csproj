@@ -4,18 +4,20 @@
     <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.0;netcoreapp3.1;net5.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
     <Description>An NLog target for Http log entries submission (works wih Splunk HEC)</Description>
-    <Authors>Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
+    <Authors>Luca Giordano, Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
     <CurrentYear>$([System.DateTime]::Now.ToString(yyyy))</CurrentYear>
-    <Copyright>Copyright (c) 2020 Dariusz Danielewski, Stan Smith and Julian Verdurmen, Copyright 2013-2020 Splunk, Inc.</Copyright>
+    <Copyright>Copyright (c) $(CurrentYear) Dariusz Danielewski, et al.; Copyright 2013-2020 Splunk, Inc.</Copyright>
     <PackageTags>nlog;nlog-target;splunk;logging</PackageTags>
-    <PackageIconUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/nlog.ico</PackageIconUrl>
     <PackageProjectUrl>https://github.com/DarekDan/NLog.Targets.HTTP</PackageProjectUrl>
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.4</Version>
-    <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>Version 1.0.4
+    <Version>1.0.5</Version>
+    <PackageIcon>nlog-http.png</PackageIcon>
+    <PackageReleaseNotes>Version 1.0.5
+- Wraped url parameter with Layout to allow config settings assignment
+- Flush error event, Keepalive support, error timeout, refactor
+Version 1.0.4
 - Signed assemblies
 - Added packaging for .Net Core 3.1 and .Net 5.0
 Version 1.0.3
@@ -55,6 +57,14 @@ Version 0.0.1
     <AssemblyOriginatorKeyFile>DarekDan.snk</AssemblyOriginatorKeyFile>    
     <DelaySign>false</DelaySign>
   </PropertyGroup>
+
+  <!--common NuGet package refs -->
+  <ItemGroup>
+    <None Include="..\nlog-http.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+  </ItemGroup>
 
   <!--common NuGet package refs -->
   <ItemGroup>

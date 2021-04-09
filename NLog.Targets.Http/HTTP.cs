@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
 using NLog.Layouts;
+
 #if (NETCORE30 || NETSTANDARD21 || NET5_0 || NETCOREAPP3_1)
 using System.Net.Security;
 #endif
@@ -243,7 +244,9 @@ namespace NLog.Targets.Http
                                 // Reduce stress
                                 await Task.Delay(HttpErrorRetryTimeout, flushToken).ConfigureAwait(false);
                             }
-                            catch (TaskCanceledException) { }
+                            catch (TaskCanceledException)
+                            {
+                            }
                         }
                     }
                 }
@@ -335,13 +338,16 @@ namespace NLog.Targets.Http
                 var method = GetHttpMethodsToUseOrDefault();
                 var request = new HttpRequestMessage(method, string.Empty)
                 {
-                    Content = new StringContent(message, Encoding.UTF8, ContentType),
-                    Keepalive = Keepalive
+                    Content = new StringContent(message, Encoding.UTF8, ContentType)
                 };
 
 
                 var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
+#if (NET5_0)
                 if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
+#else
+                if (httpResponseMessage.StatusCode.CompareTo(429) == 0)
+#endif
                 {
                     // We should respect 429.
                     await Task.Delay(7500).ConfigureAwait(false);
@@ -415,6 +421,10 @@ namespace NLog.Targets.Http
                     _httpClient.DefaultRequestHeaders.ConnectionClose = true;
                     _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
                 }
+                else
+                {
+                    _httpClient.DefaultRequestHeaders.Add("Keep-Alive", "timeout=5, max=1000");
+                }
 
                 _httpClient.DefaultRequestHeaders.Accept.Clear();
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
@@ -423,14 +433,14 @@ namespace NLog.Targets.Http
                 {
                     var useDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser);
                     _handler.Proxy = new WebProxy(new Uri(ProxyUrl))
-                    { UseDefaultCredentials = useDefaultCredentials };
+                        {UseDefaultCredentials = useDefaultCredentials};
                     if (!useDefaultCredentials)
                     {
                         var cred = ProxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
-                            ? new NetworkCredential { UserName = ProxyUser, Password = ProxyPassword }
+                            ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
                             : new NetworkCredential
-                            { Domain = cred[0], UserName = cred[1], Password = ProxyPassword };
+                                {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
                     }
                 }
 
@@ -438,8 +448,9 @@ namespace NLog.Targets.Http
                 {
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
                 }
-                if (IgnoreSslErrors)
 
+                if (IgnoreSslErrors)
+                {
 #if (NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1)
                         _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
  (sender, certificate, chain, errors) => true};
@@ -447,7 +458,7 @@ namespace NLog.Targets.Http
                         _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors)=>true;
 #else
                     _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
-#endif                
+#endif
                 }
 
                 _propertiesChanged.Clear();

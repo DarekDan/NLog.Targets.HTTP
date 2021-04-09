@@ -14,10 +14,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		build-nuget-packages.cmd = build-nuget-packages.cmd
 		build-nuget-packages.ps1 = build-nuget-packages.ps1
 		LICENSE = LICENSE
+		nlog-http.png = nlog-http.png
 		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NLog.Target.Http.ProfilerShell", "NLog.Target.Http.ProfilerShell\NLog.Target.Http.ProfilerShell.csproj", "{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NLog.Target.Http.ProfilerShell", "NLog.Target.Http.ProfilerShell\NLog.Target.Http.ProfilerShell.csproj", "{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
