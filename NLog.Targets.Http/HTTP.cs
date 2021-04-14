@@ -30,7 +30,7 @@ namespace NLog.Targets.Http
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
-        private readonly StringBuilder builder = new StringBuilder();
+        private readonly StringBuilder _builder = new StringBuilder();
         private CancellationTokenSource _flushTokenSource = new CancellationTokenSource();
         private string _accept = "application/json";
         private string _authorization;
@@ -212,12 +212,12 @@ namespace NLog.Targets.Http
             var stack = new List<StrongBox<byte[]>>();
             while (!cancellationToken.IsCancellationRequested)
             {
-                builder.Clear();
+                _builder.Clear();
                 stack.Clear();
                 var flushToken = _flushTokenSource.Token;
                 BuildChunk(stack, flushToken);
 
-                if (builder.Length > 0)
+                if (_builder.Length > 0)
                 {
                     if (flushToken.IsCancellationRequested && hasHttpError)
                     {
@@ -225,7 +225,7 @@ namespace NLog.Targets.Http
                         {
                             _conversationActiveFlag.Wait(_terminateProcessor.Token);
                             var delay = Task.Delay(1, CancellationToken.None);
-                            FlushError?.Invoke(this, new FlushErrorEventArgs(builder.ToString()));
+                            FlushError?.Invoke(this, new FlushErrorEventArgs(_builder.ToString()));
                             await delay; // ensure semaphore is entered for at least 1ms for flush detection.
                         }
                         finally
@@ -235,7 +235,7 @@ namespace NLog.Targets.Http
                     }
                     else
                     {
-                        await ProcessChunk(builder, stack).ConfigureAwait(false);
+                        await ProcessChunk(_builder, stack).ConfigureAwait(false);
 
                         if (hasHttpError)
                         {
@@ -263,12 +263,12 @@ namespace NLog.Targets.Http
                 if (_taskQueue.TryDequeue(out var message))
                 {
                     ++counter;
-                    builder.AppendLine(InMemoryCompression
+                    _builder.AppendLine(InMemoryCompression
                         ? Utility.Unzip(message.Value)
                         : Encoding.UTF8.GetString(message.Value));
                     stack.Add(message);
                     if (!_taskQueue.IsEmpty)
-                        builder.AppendLine();
+                        _builder.AppendLine();
                     // ReSharper disable once RedundantAssignment
                     message = null; //needed to reduce stress on memory 
                 }
@@ -343,10 +343,10 @@ namespace NLog.Targets.Http
 
 
                 var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
-#if (NET5_0)
-                if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
-#else
+#if NETFRAMEWORK
                 if (httpResponseMessage.StatusCode.CompareTo(429) == 0)
+#else
+                if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
 #endif
                 {
                     // We should respect 429.
