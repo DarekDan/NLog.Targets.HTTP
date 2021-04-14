@@ -12,9 +12,9 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.6</Version>
+    <Version>1.0.7</Version>
     <PackageIcon>nlog-http.png</PackageIcon>
-    <PackageReleaseNotes>Version 1.0.6
+    <PackageReleaseNotes>Version 1.0.7
 - Bug fix #17 for .Net Core
 Version 1.0.5
 - Wraped url parameter with Layout to allow config settings assignment

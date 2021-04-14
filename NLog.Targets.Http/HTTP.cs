@@ -344,7 +344,7 @@ namespace NLog.Targets.Http
 
                 var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
 #if NETFRAMEWORK
-                if (httpResponseMessage.StatusCode.CompareTo(429) == 0)
+                if ( (int)httpResponseMessage.StatusCode == 429)
 #else
                 if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
 #endif
