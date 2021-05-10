@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.0;netcoreapp3.1;net5.0</TargetFrameworks>
+    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.1;net5.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
     <Description>An NLog target for Http log entries submission (works wih Splunk HEC)</Description>
     <Authors>Luca Giordano, Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
@@ -78,12 +78,6 @@ Version 0.0.1
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
     <AssemblyTitle>NLog.Targets.Http .NET Standard 2.1</AssemblyTitle>
     <DefineConstants>NETSTANDARD21</DefineConstants>
-  </PropertyGroup>
-
-  <!--.NET Core 3.0 config -->
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp3.0' ">
-    <AssemblyTitle>NLog.Targets.Http .NET Core 3.0</AssemblyTitle>
-    <DefineConstants>NETCORE30</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.5 config -->

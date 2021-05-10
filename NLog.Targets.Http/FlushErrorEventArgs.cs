@@ -1,6 +1,4 @@
 ﻿using System;
-#if (NETCORE30 || NETSTANDARD21)
-#endif
 
 namespace NLog.Targets.Http
 {
