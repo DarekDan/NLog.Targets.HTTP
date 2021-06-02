@@ -34,6 +34,7 @@ namespace NLog.Targets.Http
         private CancellationTokenSource _flushTokenSource = new CancellationTokenSource();
         private string _accept = "application/json";
         private string _authorization;
+        private string _headers;
 
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
@@ -85,6 +86,17 @@ namespace NLog.Targets.Http
                 if (value == _authorization) return;
                 _authorization = value;
                 NotifyPropertyChanged(nameof(Authorization));
+            }
+        }
+        
+        public string Headers
+        {
+            get => _headers;
+            set
+            {
+                if (value == _headers || String.IsNullOrWhiteSpace(value)) return;
+                _headers = value;
+                NotifyPropertyChanged(nameof(Headers));
             }
         }
 
@@ -447,6 +459,20 @@ namespace NLog.Targets.Http
                 if (!string.IsNullOrWhiteSpace(Authorization))
                 {
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
+                }
+                
+                if (!string.IsNullOrWhiteSpace(Headers))
+                {
+                    var headers = Headers.Split(',');
+
+                    foreach (string kvp in headers)
+                    {
+                        var pair = kvp.Split(':');
+                        var name = pair[0];
+                        var value = pair[1];
+
+                        _httpClient.DefaultRequestHeaders.Add(name, value);
+                    }
                 }
 
                 if (IgnoreSslErrors)
