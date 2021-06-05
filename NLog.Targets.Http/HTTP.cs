@@ -87,6 +87,9 @@ namespace NLog.Targets.Http
                 NotifyPropertyChanged(nameof(Authorization));
             }
         }
+        
+        [ArrayParameter(typeof(MethodCallParameter), "header")]
+        public IList<MethodCallParameter> Headers { get; } = new List<MethodCallParameter>();
 
         public bool IgnoreSslErrors
         {
@@ -447,6 +450,18 @@ namespace NLog.Targets.Http
                 if (!string.IsNullOrWhiteSpace(Authorization))
                 {
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
+                }
+                
+                if (Headers?.Count > 0)
+                {
+                    for (int i = 0; i < Headers.Count; i++)
+                    {
+                        string headerValue = RenderLogEvent(Headers[i].Layout, LogEventInfo.CreateNullEvent());
+                        if (headerValue == null)
+                            continue;
+
+                        _httpClient.DefaultRequestHeaders.Add(Headers[i].Name, headerValue);
+                    }
                 }
 
                 if (IgnoreSslErrors)
