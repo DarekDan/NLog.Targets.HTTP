@@ -34,7 +34,6 @@ namespace NLog.Targets.Http
         private CancellationTokenSource _flushTokenSource = new CancellationTokenSource();
         private string _accept = "application/json";
         private string _authorization;
-        private string _headers;
 
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
@@ -89,16 +88,8 @@ namespace NLog.Targets.Http
             }
         }
         
-        public string Headers
-        {
-            get => _headers;
-            set
-            {
-                if (value == _headers || String.IsNullOrWhiteSpace(value)) return;
-                _headers = value;
-                NotifyPropertyChanged(nameof(Headers));
-            }
-        }
+        [ArrayParameter(typeof(MethodCallParameter), "header")]
+        public IList<MethodCallParameter> Headers { get; } = new List<MethodCallParameter>();
 
         public bool IgnoreSslErrors
         {
@@ -461,17 +452,15 @@ namespace NLog.Targets.Http
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
                 }
                 
-                if (!string.IsNullOrWhiteSpace(Headers))
+                if (Headers?.Count > 0)
                 {
-                    var headers = Headers.Split(',');
-
-                    foreach (string kvp in headers)
+                    for (int i = 0; i < Headers.Count; i++)
                     {
-                        var pair = kvp.Split(':');
-                        var name = pair[0];
-                        var value = pair[1];
+                        string headerValue = RenderLogEvent(Headers[i].Layout, LogEventInfo.CreateNullEvent());
+                        if (headerValue == null)
+                            continue;
 
-                        _httpClient.DefaultRequestHeaders.Add(name, value);
+                        _httpClient.DefaultRequestHeaders.Add(Headers[i].Name, headerValue);
                     }
                 }
 
