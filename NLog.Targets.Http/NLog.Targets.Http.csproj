@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.1;net5.0</TargetFrameworks>
+    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netstandard2.0;netcoreapp3.1;net5.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
     <Description>An NLog target for Http log entries submission (works wih Splunk HEC)</Description>
     <Authors>Luca Giordano, Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
@@ -12,9 +12,11 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.7</Version>
+    <Version>1.0.8</Version>
     <PackageIcon>nlog-http.png</PackageIcon>
-    <PackageReleaseNotes>Version 1.0.7
+    <PackageReleaseNotes>Version 1.0.8
+- Brought back support for .Net Standard 2.0       
+Version 1.0.7
 - Bug fix #17 for .Net Core
 Version 1.0.5
 - Wraped url parameter with Layout to allow config settings assignment
@@ -57,7 +59,8 @@ Version 0.0.1
     <PackageLicenseExpression>MIT</PackageLicenseExpression>    
     <SignAssembly>true</SignAssembly>    
     <AssemblyOriginatorKeyFile>DarekDan.snk</AssemblyOriginatorKeyFile>    
-    <DelaySign>false</DelaySign>
+    <DelaySign>false</DelaySign>    
+    <ApplicationIcon>nlog.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!--common NuGet package refs -->
@@ -74,34 +77,40 @@ Version 0.0.1
     <PackageReference Include="System.Net.Http" Version="4.3.4" />
   </ItemGroup>
 
+  <!--.NET Standard 2.0 config -->
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
+    <AssemblyTitle>NLog.Targets.Http .NET Standard 2.0</AssemblyTitle>
+    <DefineConstants>NETSTANDARD</DefineConstants>
+  </PropertyGroup>
+
   <!--.NET Standard 2.1 config -->
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
     <AssemblyTitle>NLog.Targets.Http .NET Standard 2.1</AssemblyTitle>
-    <DefineConstants>NETSTANDARD21</DefineConstants>
+    <DefineConstants>NETSTANDARD</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.5 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net45' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.5</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.6.2 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net462' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.6.2</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.7.2 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net472' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.7.2</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.8 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net48' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.8</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">

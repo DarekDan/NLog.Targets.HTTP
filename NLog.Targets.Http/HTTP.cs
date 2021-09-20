@@ -13,7 +13,7 @@ using NLog.Common;
 using NLog.Config;
 using NLog.Layouts;
 
-#if (NETSTANDARD21 || NET5_0 || NETCOREAPP3_1)
+#if (NETSTANDARD || NET5_0 || NETCOREAPP3_1)
 using System.Net.Security;
 #endif
 
@@ -38,9 +38,9 @@ namespace NLog.Targets.Http
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
         private bool _expect100Continue = ServicePointManager.Expect100Continue;
-#if (NET5_0 || NETCOREAPP3_1)
+#if NET5_0 || NETCOREAPP3_1
         private SocketsHttpHandler _handler;
-#elif NETSTANDARD21
+#elif NETSTANDARD
         private HttpClientHandler _handler;
 #else
         private WebRequestHandler _handler;
@@ -343,7 +343,7 @@ namespace NLog.Targets.Http
 
 
                 var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
-#if NETFRAMEWORK
+#if NETFRAMEWORK || NETSTANDARD
                 if ( (int)httpResponseMessage.StatusCode == 429)
 #else
                 if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
@@ -402,9 +402,9 @@ namespace NLog.Targets.Http
             lock (_propertiesChanged)
             {
                 // ReSharper disable once UseObjectOrCollectionInitializer
-#if (NET5_0 || NETCOREAPP3_1)
+#if NET5_0 || NETCOREAPP3_1
                     _handler = new SocketsHttpHandler();
-#elif NETSTANDARD21
+#elif NETSTANDARD
                     _handler = new HttpClientHandler();
 #else
                 _handler = new WebRequestHandler();
@@ -451,10 +451,10 @@ namespace NLog.Targets.Http
 
                 if (IgnoreSslErrors)
                 {
-#if (NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1)
+#if NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1
                         _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
  (sender, certificate, chain, errors) => true};
-#elif NETSTANDARD21
+#elif NETSTANDARD
                         _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors)=>true;
 #else
                     _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
