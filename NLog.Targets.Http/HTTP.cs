@@ -47,13 +47,13 @@ namespace NLog.Targets.Http
 #endif
         private HttpClient _httpClient;
         private bool _ignoreSslErrors = true;
-        private bool hasHttpError;
+        private bool _hasHttpError;
 
         private int _maxQueueSize = int.MaxValue;
         private string _proxyPassword = string.Empty;
-        private string _proxyUrl = string.Empty;
+        private Layout _proxyUrl = Layout.FromString(string.Empty);
         private string _proxyUser = string.Empty;
-        private Layout _url;
+        private Layout _url = Layout.FromString(string.Empty);
 
         /// <summary>
         /// Invoked when the application is unable to flush due to a HTTP related error.
@@ -162,7 +162,7 @@ namespace NLog.Targets.Http
 
         public bool InMemoryCompression { get; set; } = true;
 
-        public string ProxyUrl
+        public Layout ProxyUrl
         {
             get => _proxyUrl;
             set
@@ -222,7 +222,7 @@ namespace NLog.Targets.Http
 
                 if (_builder.Length > 0)
                 {
-                    if (flushToken.IsCancellationRequested && hasHttpError)
+                    if (flushToken.IsCancellationRequested && _hasHttpError)
                     {
                         try
                         {
@@ -240,7 +240,7 @@ namespace NLog.Targets.Http
                     {
                         await ProcessChunk(_builder, stack).ConfigureAwait(false);
 
-                        if (hasHttpError)
+                        if (_hasHttpError)
                         {
                             try
                             {
@@ -357,17 +357,17 @@ namespace NLog.Targets.Http
                 }
 
                 var isSuccess = httpResponseMessage.IsSuccessStatusCode;
-                hasHttpError = !isSuccess;
+                _hasHttpError = !isSuccess;
                 return isSuccess;
             }
             catch (WebException)
             {
-                hasHttpError = true;
+                _hasHttpError = true;
                 return false;
             }
             catch (HttpRequestException)
             {
-                hasHttpError = true;
+                _hasHttpError = true;
                 return false;
             }
             catch (Exception ex)
@@ -412,7 +412,8 @@ namespace NLog.Targets.Http
 #else
                 _handler = new WebRequestHandler();
 #endif
-                _handler.UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl);
+                var proxyUrl = ProxyUrl?.Render(LogEventInfo.CreateNullEvent()); 
+                _handler.UseProxy = !string.IsNullOrWhiteSpace(proxyUrl);
                 _httpClient = new HttpClient(_handler)
                 {
                     BaseAddress = new Uri(Url.Render(LogEventInfo.CreateNullEvent())),
@@ -441,7 +442,10 @@ namespace NLog.Targets.Http
                 if (_handler.UseProxy)
                 {
                     var useDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser);
-                    _handler.Proxy = new WebProxy(new Uri(ProxyUrl))
+
+                    // UseProxy will not be set, if proxyUrl is null or whitespace (above, few lines)
+                    // ReSharper disable once AssignNullToNotNullAttribute
+                    _handler.Proxy = new WebProxy(new Uri(proxyUrl))
                         { UseDefaultCredentials = useDefaultCredentials };
                     if (!useDefaultCredentials)
                     {

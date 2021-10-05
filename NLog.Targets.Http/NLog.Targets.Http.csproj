@@ -12,9 +12,11 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.9</Version>
+    <Version>1.0.10</Version>
     <PackageIcon>nlog-http.png</PackageIcon>
-    <PackageReleaseNotes>Version 1.0.9
+    <PackageReleaseNotes>Version 1.0.10
+- ProxyUrl has been converted to a Layout element and can now be dynamic
+Version 1.0.9
 - Added support for additional headers
 Version 1.0.8
 - Brought back support for .Net Standard 2.0       

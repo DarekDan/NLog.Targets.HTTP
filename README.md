@@ -53,16 +53,16 @@ Listed below are available configuration parameters with their default values (w
 ```
 
 #### URL
-The URL to send messages to (mandatory)
+The URL (`Layout` element) to send messages to (mandatory).
 
 #### Method
-HTTP method to use (GET,__POST__)
+HTTP method to use (GET,__POST__).
 
 #### Authorization
 The Authorization Header value to pass.
 
 #### BatchSize
-Number of messages to be sent together in one call separated by an empty new line
+Number of messages to be sent together in one call separated by an empty new line.
 
 #### MaxQueueSize
 Maximum number of messages awaiting to be send. Please note, that if this value is set too low, the logger might be blocking.
@@ -98,7 +98,8 @@ How long should the client wait to connect (default is __30__ seconds).
 Reduces the amount of memory consumed at the expense of increased CPU usage. As much as 100% performance improvement can be achieved by setting this to `false`. 
 
 #### ProxyUrl
-Designates a proxy server to use. Must include protocol (http|https) and port
+Designates a proxy server to use. Must include protocol (http|https) and port. 
+It is a `Layout` element so can be dynamic.
 
 #### ProxyUser
 If proxy authentication is needed, you can specify it with a domain prefix, i.e. DOMAIN\USER.
