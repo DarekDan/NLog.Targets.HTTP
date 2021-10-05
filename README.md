@@ -45,6 +45,11 @@ Listed below are available configuration parameters with their default values (w
         ProxyUser=''
         ProxyPassword=''
     >
+    <!-- optional additional HTTP Headers -->
+    <header name='key' value='value'/>
+    <!-- additional headers -->
+    <!-- layout element -->
+</target>
 ```
 
 #### URL
@@ -100,6 +105,10 @@ If proxy authentication is needed, you can specify it with a domain prefix, i.e.
 
 #### ProxyPassword
 Password to use for proxy authentication.
+
+#### Additional Headers
+Additional HTTP Headers can be specified by adding multiple `<header name='..' value='..'/>` elements. 
+Elements with a blank `name` or `value` will not be included.
 
 ## UnixTimeLayoutRenderer
 The "Unix Time" renderer supports `universalTime` option (boolean), just like the date renderer does.

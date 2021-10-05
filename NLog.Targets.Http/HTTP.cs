@@ -24,7 +24,7 @@ namespace NLog.Targets.Http
     public class HTTP : TargetWithLayout
     {
         private static readonly Dictionary<string, HttpMethod> AvailableHttpMethods = new Dictionary<string, HttpMethod>
-            {{"post", HttpMethod.Post}, {"get", HttpMethod.Get}};
+            { { "post", HttpMethod.Post }, { "get", HttpMethod.Get } };
 
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
@@ -132,6 +132,9 @@ namespace NLog.Targets.Http
                 NotifyPropertyChanged(nameof(Accept));
             }
         }
+
+        [ArrayParameter(typeof(NHttpHeader), "header")]
+        public IList<NHttpHeader> Headers { get; set; } = new List<NHttpHeader>();
 
         [Obsolete] public int DefaultConnectionLimit { get; set; } = ServicePointManager.DefaultConnectionLimit;
 
@@ -344,7 +347,7 @@ namespace NLog.Targets.Http
 
                 var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
 #if NETFRAMEWORK || NETSTANDARD
-                if ( (int)httpResponseMessage.StatusCode == 429)
+                if ((int)httpResponseMessage.StatusCode == 429)
 #else
                 if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
 #endif
@@ -429,18 +432,24 @@ namespace NLog.Targets.Http
                 _httpClient.DefaultRequestHeaders.Accept.Clear();
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
+                foreach (var header in Headers.Where(w =>
+                    !string.IsNullOrWhiteSpace(w.Name) && !string.IsNullOrWhiteSpace(w.Value)))
+                {
+                    _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value);
+                }
+
                 if (_handler.UseProxy)
                 {
                     var useDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser);
                     _handler.Proxy = new WebProxy(new Uri(ProxyUrl))
-                        {UseDefaultCredentials = useDefaultCredentials};
+                        { UseDefaultCredentials = useDefaultCredentials };
                     if (!useDefaultCredentials)
                     {
                         var cred = ProxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
-                            ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
+                            ? new NetworkCredential { UserName = ProxyUser, Password = ProxyPassword }
                             : new NetworkCredential
-                                {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
+                                { Domain = cred[0], UserName = cred[1], Password = ProxyPassword };
                     }
                 }
 

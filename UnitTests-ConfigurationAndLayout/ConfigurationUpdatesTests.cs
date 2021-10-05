@@ -11,6 +11,7 @@ using System.Xml.Linq;
 using System.Xml.XPath;
 using NLog;
 using NLog.Config;
+using NLog.Targets.Http;
 using NUnit.Framework;
 
 namespace UnitTests_ConfigurationAndLayout
@@ -29,32 +30,12 @@ namespace UnitTests_ConfigurationAndLayout
         }
 
         [Test]
-        public void MakeChangeAndConfirm()
+        public void HeadersAreNotEmpty()
         {
-            Assert.True(_logger.IsWarnEnabled);
-            var semaphore = new SemaphoreSlim(1);
-            semaphore.Wait();
-
-            void LogManagerOnConfigurationReloaded(object sender, LoggingConfigurationReloadedEventArgs args)
-            {
-                semaphore.Release();
-            }
-
-            LogManager.ConfigurationReloaded += LogManagerOnConfigurationReloaded;
-
-            var configFilePath = Path.Combine(_testDirectory, "nlog.config");
-            var doc = XDocument.Load(configFilePath);
-            XmlNameTable nameTable = new NameTable();
-            var namespaceManager = new XmlNamespaceManager(nameTable);
-            namespaceManager.AddNamespace("ns1", doc.Root.GetDefaultNamespace().NamespaceName);
-            var target = doc.Root.XPathSelectElement("ns1:targets/ns1:target[@name='splunk']", namespaceManager);
-            const int expectedConnectionLimit = 1000;
-            target.Add(new XAttribute("DefaultConnectionLimit", expectedConnectionLimit));
-            doc.Save(configFilePath);
-            semaphore.Wait(TimeSpan.FromSeconds(5));
-            Assert.AreEqual(expectedConnectionLimit, ServicePointManager.DefaultConnectionLimit);
-            semaphore.Release();
-            LogManager.ConfigurationReloaded -= LogManagerOnConfigurationReloaded;
+            Assert.True(LogManager.Configuration.AllTargets.Count>0);
+            var splunkTarget = (HTTP) LogManager.Configuration.FindTargetByName("splunk");
+            Assert.That(splunkTarget.Headers.Count==2);
         }
+
     }
 }

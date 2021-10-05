@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using NLog;
 using NLog.Config;
 using NLog.Layouts;
@@ -36,7 +37,8 @@ namespace UnitTests_Coded
                             //don't escape layout
                             false)
                     }
-                }
+                },
+                Headers = new[] { new NHttpHeader { Name = "N1", Value = "V1" } }
             };
             config.AddTarget("splunkTarget", target);
 
