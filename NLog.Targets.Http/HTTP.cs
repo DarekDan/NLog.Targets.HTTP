@@ -388,9 +388,9 @@ namespace NLog.Targets.Http
             return AvailableHttpMethods[Method.ToLower()] ?? HttpMethod.Post;
         }
 
-        private AuthenticationHeaderValue GetAuthorizationHeader()
+        private static AuthenticationHeaderValue GetAuthorizationHeader(string authorization)
         {
-            var parts = Authorization.Render(LogEventInfo.CreateNullEvent()).Split(' ');
+            var parts = authorization.Split(' ');
             return parts.Length == 1
                 ? new AuthenticationHeaderValue(parts[0])
                 : new AuthenticationHeaderValue(parts[0], string.Join(" ", parts.Skip(1)));
@@ -436,9 +436,17 @@ namespace NLog.Targets.Http
                 _httpClient.DefaultRequestHeaders.Accept.Clear();
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
-                foreach (var header in Headers.Where(w =>
-                    !string.IsNullOrWhiteSpace(w.Name) && !string.IsNullOrWhiteSpace(w.Value.Render(nullEvent))))
-                    _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value.Render(nullEvent));
+                foreach (var header in Headers)
+                {
+                    if (string.IsNullOrWhiteSpace(header?.Name))
+                        continue;
+
+                    var headerValue = header.Value?.Render(nullEvent);
+                    if (string.IsNullOrWhiteSpace(headerValue))
+                        continue;
+
+                    _httpClient.DefaultRequestHeaders.Add(header.Name, headerValue);
+                }
 
                 if (_handler.UseProxy)
                 {
@@ -460,8 +468,11 @@ namespace NLog.Targets.Http
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(Authorization.Render(nullEvent)))
-                    _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
+                var authorization = Authorization?.Render(nullEvent) ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(authorization))
+                {
+                    _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader(authorization);
+                }
 
                 if (IgnoreSslErrors)
                 {
