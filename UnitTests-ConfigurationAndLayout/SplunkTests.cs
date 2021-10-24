@@ -5,7 +5,7 @@ using NUnit.Framework;
 
 namespace UnitTests_ConfigurationAndLayout
 {
-    [TestFixture]
+    [TestFixture(Ignore = "true")]
     public class SplunkTests
     {
         [OneTimeSetUp]

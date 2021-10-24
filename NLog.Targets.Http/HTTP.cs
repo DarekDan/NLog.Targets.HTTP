@@ -33,7 +33,7 @@ namespace NLog.Targets.Http
         private readonly StringBuilder _builder = new StringBuilder();
         private CancellationTokenSource _flushTokenSource = new CancellationTokenSource();
         private string _accept = "application/json";
-        private string _authorization;
+        private Layout _authorization;
 
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
@@ -50,10 +50,11 @@ namespace NLog.Targets.Http
         private bool _hasHttpError;
 
         private int _maxQueueSize = int.MaxValue;
-        private string _proxyPassword = string.Empty;
+        private Layout _proxyPassword = string.Empty;
         private Layout _proxyUrl = Layout.FromString(string.Empty);
-        private string _proxyUser = string.Empty;
+        private Layout _proxyUser = string.Empty;
         private Layout _url = Layout.FromString(string.Empty);
+        private LogEventInfo _nullEvent;
 
         /// <summary>
         /// Invoked when the application is unable to flush due to a HTTP related error.
@@ -77,7 +78,7 @@ namespace NLog.Targets.Http
 
         public string Method { get; set; } = "POST";
 
-        public string Authorization
+        public Layout Authorization
         {
             get => _authorization;
             set
@@ -173,7 +174,7 @@ namespace NLog.Targets.Http
             }
         }
 
-        public string ProxyUser
+        public Layout ProxyUser
         {
             get => _proxyUser;
             set
@@ -184,7 +185,7 @@ namespace NLog.Targets.Http
             }
         }
 
-        public string ProxyPassword
+        public Layout ProxyPassword
         {
             get => _proxyPassword;
             set
@@ -388,9 +389,9 @@ namespace NLog.Targets.Http
 
         private AuthenticationHeaderValue GetAuthorizationHeader()
         {
-            var parts = Authorization.Split(' ');
+            var parts = Authorization.Render(_nullEvent).Split(' ');
             return parts.Length == 1
-                ? new AuthenticationHeaderValue(Authorization)
+                ? new AuthenticationHeaderValue(parts[0])
                 : new AuthenticationHeaderValue(parts[0], string.Join(" ", parts.Skip(1)));
         }
 
@@ -412,11 +413,12 @@ namespace NLog.Targets.Http
 #else
                 _handler = new WebRequestHandler();
 #endif
-                var proxyUrl = ProxyUrl?.Render(LogEventInfo.CreateNullEvent()); 
+                _nullEvent = LogEventInfo.CreateNullEvent();
+                var proxyUrl = ProxyUrl?.Render(_nullEvent);
                 _handler.UseProxy = !string.IsNullOrWhiteSpace(proxyUrl);
                 _httpClient = new HttpClient(_handler)
                 {
-                    BaseAddress = new Uri(Url.Render(LogEventInfo.CreateNullEvent())),
+                    BaseAddress = new Uri(Url.Render(_nullEvent)),
                     Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
                 };
 
@@ -434,14 +436,15 @@ namespace NLog.Targets.Http
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
                 foreach (var header in Headers.Where(w =>
-                    !string.IsNullOrWhiteSpace(w.Name) && !string.IsNullOrWhiteSpace(w.Value)))
+                    !string.IsNullOrWhiteSpace(w.Name) && !string.IsNullOrWhiteSpace(w.Value.Render(_nullEvent))))
                 {
-                    _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value);
+                    _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value.Render(_nullEvent));
                 }
 
                 if (_handler.UseProxy)
                 {
-                    var useDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser);
+                    var proxyUser = ProxyUser.Render(_nullEvent);
+                    var useDefaultCredentials = string.IsNullOrWhiteSpace(proxyUser);
 
                     // UseProxy will not be set, if proxyUrl is null or whitespace (above, few lines)
                     // ReSharper disable once AssignNullToNotNullAttribute
@@ -449,15 +452,16 @@ namespace NLog.Targets.Http
                         { UseDefaultCredentials = useDefaultCredentials };
                     if (!useDefaultCredentials)
                     {
-                        var cred = ProxyUser.Split('\\');
+                        var cred = proxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
-                            ? new NetworkCredential { UserName = ProxyUser, Password = ProxyPassword }
+                            ? new NetworkCredential
+                                { UserName = proxyUser, Password = ProxyPassword.Render(_nullEvent) }
                             : new NetworkCredential
-                                { Domain = cred[0], UserName = cred[1], Password = ProxyPassword };
+                                { Domain = cred[0], UserName = cred[1], Password = ProxyPassword.Render(_nullEvent) };
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(Authorization))
+                if (!string.IsNullOrWhiteSpace(Authorization.Render(_nullEvent)))
                 {
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
                 }
