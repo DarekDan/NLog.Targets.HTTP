@@ -6,13 +6,13 @@ namespace NLog.Target.Http.ProfilerShell
 {
     internal class Program
     {
-        private static void Main(string[] args)
+        private static void Main()
         {
-            ILogger _logger = LogManager.GetCurrentClassLogger();
-            var _guid = Guid.NewGuid();
+            ILogger logger = LogManager.GetCurrentClassLogger();
+            var guid = Guid.NewGuid();
             InternalLogger.Info("Starting");
-            Parallel.For(0, 1000000, i => _logger.Info($"{_guid} {i} at {DateTime.Now}"));
-            InternalLogger.Info($"Finished {_guid}");
+            Parallel.For(0, 1000000, i => logger.Info($"{guid} {i} at {DateTime.Now}"));
+            InternalLogger.Info($"Finished {guid}");
             LogManager.Flush(TimeSpan.FromHours(1));
             LogManager.Shutdown();
         }

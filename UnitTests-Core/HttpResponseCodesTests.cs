@@ -4,7 +4,7 @@ using NUnit.Framework;
 
 namespace UnitTests_Core
 {
-    public class HttpResposeCodesTests
+    public class HttpResponseCodesTests
     {
         
         [Test]

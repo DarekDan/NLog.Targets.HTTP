@@ -106,7 +106,7 @@ namespace NLog.Targets.Http
         /// </summary>
         public int HttpErrorRetryTimeout { get; set; } = 500;
 
-        public bool Keepalive { get; set; }
+        public bool KeepAlive { get; set; }
 
         public int BatchSize
         {
@@ -136,6 +136,7 @@ namespace NLog.Targets.Http
         [ArrayParameter(typeof(NHttpHeader), "header")]
         public IList<NHttpHeader> Headers { get; set; } = new List<NHttpHeader>();
 
+        // ReSharper disable once UnusedMember.Global
         [Obsolete] public int DefaultConnectionLimit { get; set; } = ServicePointManager.DefaultConnectionLimit;
 
         public bool Expect100Continue
@@ -195,6 +196,8 @@ namespace NLog.Targets.Http
             }
         }
 
+        // ReSharper disable once UnusedMember.Global
+        // ReSharper disable once IdentifierTypo
         [Obsolete] public bool UseNagleAlgorithm { get; set; } = true;
 
         private async Task ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
@@ -226,7 +229,7 @@ namespace NLog.Targets.Http
                     {
                         try
                         {
-                            _conversationActiveFlag.Wait(_terminateProcessor.Token);
+                            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
                             var delay = Task.Delay(1, CancellationToken.None);
                             FlushError?.Invoke(this, new FlushErrorEventArgs(_builder.ToString()));
                             await delay; // ensure semaphore is entered for at least 1ms for flush detection.
@@ -334,7 +337,7 @@ namespace NLog.Targets.Http
         /// </returns>
         private async Task<bool> SendFast(string message)
         {
-            _conversationActiveFlag.Wait(_terminateProcessor.Token);
+            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
             try
             {
                 ResetHttpClientIfNeeded();
@@ -421,7 +424,7 @@ namespace NLog.Targets.Http
                     Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
                 };
 
-                if (!Keepalive)
+                if (!KeepAlive)
                 {
                     _httpClient.DefaultRequestHeaders.ConnectionClose = true;
                     _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
