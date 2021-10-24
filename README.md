@@ -152,6 +152,6 @@ The "Unix Time" renderer supports `universalTime` option (boolean), just like th
 
 ### Sample stats
 On a Lenovo Xeon E3-1505M v6 powered laptop with 64GB of RAM and 3GB/s NVMe storage, 
-this HTTP target was able to clock almost 77,000 accepted messages per second, 
-and over 31,000 per second received and processed by local Dockerized Splunk Enterpise 8.0.6.
+this HTTP target was able to clock about 125,000 accepted messages per second, 
+and 100,000 per second received and processed by local Dockerized Splunk Enterpise 8.2.2.
  

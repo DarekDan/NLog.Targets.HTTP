@@ -31,7 +31,6 @@ namespace NLog.Targets.Http
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
         private readonly StringBuilder _builder = new StringBuilder();
-        private CancellationTokenSource _flushTokenSource = new CancellationTokenSource();
         private string _accept = "application/json";
         private Layout _authorization;
 
@@ -54,11 +53,14 @@ namespace NLog.Targets.Http
         private Layout _proxyUrl = Layout.FromString(string.Empty);
         private Layout _proxyUser = string.Empty;
         private Layout _url = Layout.FromString(string.Empty);
-        
+
         /// <summary>
         /// Invoked when the application is unable to flush due to a HTTP related error.
         /// </summary>
-        public static event EventHandler<FlushErrorEventArgs> FlushError;
+        public static event EventHandler<FlushErrorEventArgs> FlushError = (sender, args) =>
+        {
+            InternalLogger.Error(args.FailedMessage);
+        };
 
         /// <summary>
         ///     URL to Post to
@@ -220,12 +222,11 @@ namespace NLog.Targets.Http
             {
                 _builder.Clear();
                 stack.Clear();
-                var flushToken = _flushTokenSource.Token;
-                BuildChunk(stack, flushToken);
+                BuildChunk(stack, cancellationToken);
 
                 if (_builder.Length > 0)
                 {
-                    if (flushToken.IsCancellationRequested && _hasHttpError)
+                    if (_hasHttpError)
                     {
                         try
                         {
@@ -248,10 +249,11 @@ namespace NLog.Targets.Http
                             try
                             {
                                 // Reduce stress
-                                await Task.Delay(HttpErrorRetryTimeout, flushToken).ConfigureAwait(false);
+                                await Task.Delay(HttpErrorRetryTimeout, cancellationToken).ConfigureAwait(false);
                             }
-                            catch (TaskCanceledException)
+                            catch (TaskCanceledException tce)
                             {
+                                InternalLogger.Info($"HTTP Logger {tce.GetBaseException()}");
                             }
                         }
                     }
@@ -296,6 +298,7 @@ namespace NLog.Targets.Http
 
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
+            InternalLogger.Info($"Flushing {_taskQueue.Count} events");
             AwaitCurrentMessagesToProcess();
             base.FlushAsync(asyncContinuation);
         }
@@ -305,10 +308,7 @@ namespace NLog.Targets.Http
             // If there are messages to be processed
             // or no flags available 
             // just wait
-            _flushTokenSource.Cancel(false);
             while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
-            _flushTokenSource.Dispose();
-            _flushTokenSource = new CancellationTokenSource();
         }
 
         protected override void Write(LogEventInfo logEvent)
