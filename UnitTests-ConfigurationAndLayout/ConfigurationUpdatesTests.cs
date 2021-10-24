@@ -2,17 +2,10 @@
 // 
 // (C) Copyright Quaterne, LLC - 2019
 
-using System;
-using System.IO;
-using System.Net;
-using System.Threading;
-using System.Xml;
-using System.Xml.Linq;
-using System.Xml.XPath;
 using NLog;
-using NLog.Config;
 using NLog.Targets.Http;
 using NUnit.Framework;
+// ReSharper disable NotAccessedField.Local
 
 namespace UnitTests_ConfigurationAndLayout
 {
