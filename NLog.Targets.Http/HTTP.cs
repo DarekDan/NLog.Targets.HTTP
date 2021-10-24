@@ -337,7 +337,7 @@ namespace NLog.Targets.Http
         /// </returns>
         private async Task<bool> SendFast(string message)
         {
-            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
+            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token).ConfigureAwait(false);
             try
             {
                 ResetHttpClientIfNeeded();
