@@ -14,7 +14,7 @@
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
     <Version>1.0.11</Version>
     <PackageIcon>nlog-http.png</PackageIcon>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
     <PackageReleaseNotes>Version 1.0.11
 - Added support for Layout element in ProxyUser, ProxyPassword, Authorization and custom Headers value.
 Version 1.0.10
@@ -76,7 +76,7 @@ Version 0.0.1
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
-    <None Include="..\readme.md" Pack="true" PackagePath="\"/>
+    <None Include="..\readme.md" Pack="true" PackagePath=""/>
   </ItemGroup>
 
   <!--common NuGet package refs -->
