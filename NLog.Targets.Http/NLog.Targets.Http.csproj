@@ -12,10 +12,10 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.15</Version>
+    <Version>1.0.16</Version>
     <PackageIcon>nlog-http.png</PackageIcon>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
-    <PackageReleaseNotes>Version 1.0.15
+    <PackageReleaseNotes>Version 1.0.16
 - Bug fix related to composing HTTP payload
 - New feature to package messages as JSON array instead of separating by new line.
 - Memory compression disabled by default
