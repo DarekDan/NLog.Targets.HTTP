@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
 using NLog.Layouts;
-
 #if (NETSTANDARD || NET5_0 || NETCOREAPP3_1)
 using System.Net.Security;
 #endif
@@ -30,7 +29,6 @@ namespace NLog.Targets.Http
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
-        private readonly StringBuilder _builder = new StringBuilder();
         private string _accept = "application/json";
         private Layout _authorization;
 
@@ -55,7 +53,7 @@ namespace NLog.Targets.Http
         private Layout _url = Layout.FromString(string.Empty);
 
         /// <summary>
-        /// Invoked when the application is unable to flush due to a HTTP related error.
+        ///     Invoked when the application is unable to flush due to a HTTP related error.
         /// </summary>
         public static event EventHandler<FlushErrorEventArgs> FlushError = (sender, args) =>
         {
@@ -104,7 +102,7 @@ namespace NLog.Targets.Http
         public bool FlushBeforeShutdown { get; set; } = true;
 
         /// <summary>
-        /// The timeout between attempted HTTP requests.
+        ///     The timeout between attempted HTTP requests.
         /// </summary>
         public int HttpErrorRetryTimeout { get; set; } = 500;
 
@@ -115,6 +113,8 @@ namespace NLog.Targets.Http
             get => _batchSize;
             set => _batchSize = value < 1 ? 1 : value;
         }
+
+        public bool BatchAsJsonArray { get; set; } = false;
 
         public int MaxQueueSize
         {
@@ -163,7 +163,7 @@ namespace NLog.Targets.Http
             }
         }
 
-        public bool InMemoryCompression { get; set; } = true;
+        public bool InMemoryCompression { get; set; } = false;
 
         public Layout ProxyUrl
         {
@@ -220,11 +220,10 @@ namespace NLog.Targets.Http
             var stack = new List<StrongBox<byte[]>>();
             while (!cancellationToken.IsCancellationRequested)
             {
-                _builder.Clear();
                 stack.Clear();
-                BuildChunk(stack, cancellationToken);
+                var builder = BuildChunk(stack, cancellationToken);
 
-                if (_builder.Length > 0)
+                if (builder.Length > 0)
                 {
                     if (_hasHttpError)
                     {
@@ -232,7 +231,7 @@ namespace NLog.Targets.Http
                         {
                             await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
                             var delay = Task.Delay(1, CancellationToken.None);
-                            FlushError?.Invoke(this, new FlushErrorEventArgs(_builder.ToString()));
+                            FlushError?.Invoke(this, new FlushErrorEventArgs(builder.ToString()));
                             await delay; // ensure semaphore is entered for at least 1ms for flush detection.
                         }
                         finally
@@ -242,10 +241,9 @@ namespace NLog.Targets.Http
                     }
                     else
                     {
-                        await ProcessChunk(_builder, stack).ConfigureAwait(false);
+                        await ProcessChunk(builder, stack).ConfigureAwait(false);
 
                         if (_hasHttpError)
-                        {
                             try
                             {
                                 // Reduce stress
@@ -255,7 +253,6 @@ namespace NLog.Targets.Http
                             {
                                 InternalLogger.Info($"HTTP Logger {tce.GetBaseException()}");
                             }
-                        }
                     }
                 }
 
@@ -263,29 +260,33 @@ namespace NLog.Targets.Http
             }
         }
 
-        private void BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
+        private StringBuilder BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
         {
-            int counter = 0;
+            var builder = new StringBuilder();
+            var counter = 0;
+            if (BatchAsJsonArray)
+                builder.Append("[");
             while (!_taskQueue.IsEmpty)
             {
                 if (_taskQueue.TryDequeue(out var message))
                 {
                     ++counter;
-                    _builder.AppendLine(InMemoryCompression
+                    builder.AppendLine(InMemoryCompression
                         ? Utility.Unzip(message.Value)
                         : Encoding.UTF8.GetString(message.Value));
                     stack.Add(message);
-                    if (!_taskQueue.IsEmpty)
-                        _builder.AppendLine();
                     // ReSharper disable once RedundantAssignment
                     message = null; //needed to reduce stress on memory 
                 }
 
-                if (counter == BatchSize && !flushToken.IsCancellationRequested)
-                {
-                    break;
-                }
+                if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
+                if (!_taskQueue.IsEmpty)
+                    builder.Append(BatchAsJsonArray ? ", " : Environment.NewLine);
             }
+
+            if (BatchAsJsonArray)
+                builder.Append("]");
+            return builder;
         }
 
         protected override void CloseTarget()
@@ -354,10 +355,8 @@ namespace NLog.Targets.Http
 #else
                 if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
 #endif
-                {
                     // We should respect 429.
                     await Task.Delay(7500).ConfigureAwait(false);
-                }
 
                 var isSuccess = httpResponseMessage.IsSuccessStatusCode;
                 _hasHttpError = !isSuccess;
@@ -439,9 +438,7 @@ namespace NLog.Targets.Http
 
                 foreach (var header in Headers.Where(w =>
                     !string.IsNullOrWhiteSpace(w.Name) && !string.IsNullOrWhiteSpace(w.Value.Render(nullEvent))))
-                {
                     _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value.Render(nullEvent));
-                }
 
                 if (_handler.UseProxy)
                 {
@@ -464,9 +461,7 @@ namespace NLog.Targets.Http
                 }
 
                 if (!string.IsNullOrWhiteSpace(Authorization.Render(nullEvent)))
-                {
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
-                }
 
                 if (IgnoreSslErrors)
                 {

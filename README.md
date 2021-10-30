@@ -62,12 +62,16 @@ HTTP method to use (GET,__POST__).
 The Authorization Header value to pass.
 
 #### BatchSize
-Number of messages to be sent together in one call separated by an empty new line.
+Number of messages to be sent together in one call.
+
+#### BatchAsJsonArray
+If set to `true`, messages will be packaged as JSON Array instead of being
+separated with `Environment.NewLine` character. Default is `false`.
 
 #### MaxQueueSize
 Maximum number of messages awaiting to be send. Please note, that if this value is set too low, the logger might be blocking.
 
-#### IgnoreSsslErrors
+#### IgnoreSslErrors
 Some SSL certificates might be invalid or not-trusted.
 
 #### FlushBeforeShutdown
@@ -75,10 +79,10 @@ Force all messages to be delivered before shutting down. Note  that by design .N
 Make sure you leverage `LogManager.Flush(TimeSpan.FromHours(24))` in most extreme scenarios. 
 
 #### ContentType
-HTTP ContentType Header value.
+HTTP ContentType Header value. Default is `application/json`.
 
 #### Accept
-HTTP Accept Header value.
+HTTP Accept Header value. Default is `application/json`.
 
 #### DefaultConnectionLimit
 How many connections might be used at the same time. Changes ServicePointManager.DefaultConnectionLimit, which might affect other parts of your system. 
@@ -95,7 +99,7 @@ because it reduces the number of packets transmitted and lowers the overhead per
 How long should the client wait to connect (default is __30__ seconds).
 
 #### InMemoryCompression
-Reduces the amount of memory consumed at the expense of increased CPU usage. As much as 100% performance improvement can be achieved by setting this to `false`. 
+Reduces the amount of memory consumed at the expense of increased CPU usage. Significant performance improvement can be achieved by using default of `false`. 
 
 #### ProxyUrl
 Designates a proxy server to use. Must include protocol (http|https) and port. 
@@ -152,6 +156,7 @@ The "Unix Time" renderer supports `universalTime` option (boolean), just like th
 
 ### Sample stats
 On a Lenovo Xeon E3-1505M v6 powered laptop with 64GB of RAM and 3GB/s NVMe storage, 
-this HTTP target was able to clock about 125,000 accepted messages per second, 
-and 100,000 per second received and processed by local Dockerized Splunk Enterpise 8.2.2.
- 
+this HTTP target was able to consistenlty accept about 250,000 messages per second, 
+and 40,000+ per second received and processed by local Dockerized Splunk Enterpise 8.2.2. 
+Please note, that these stats depend heavily on the message size, batch size, and amount of bytes
+that can be submitted in a single POST message. 

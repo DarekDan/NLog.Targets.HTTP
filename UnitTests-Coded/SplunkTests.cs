@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using NLog;
 using NLog.Config;
 using NLog.Layouts;
@@ -16,8 +18,12 @@ namespace UnitTests_Coded
             var config = new LoggingConfiguration();
             var target = new HTTP
             {
-                Url = "https://input-prd-p-9dvvm7mz6x87.cloud.splunk.com:8088/services/collector",
-                Authorization = "Splunk a575956e-10a5-4048-8b69-3f064da1ca88",
+                Url = "https://localhost:8088/services/collector/event",
+                Authorization = "Splunk b87acd5b-3eba-4f0e-b768-1a715fd52871",
+                Name = "SplunkTarget",
+                InMemoryCompression = false,
+                BatchSize = 50000,
+                BatchAsJsonArray = false,
                 Layout = new JsonLayout
                 {
                     Attributes =
@@ -58,7 +64,7 @@ namespace UnitTests_Coded
         [OneTimeTearDown]
         public void TestShutdown()
         {
-            LogManager.Flush();
+            LogManager.Flush(TimeSpan.FromMinutes(1));
             LogManager.Shutdown();
         }
 
@@ -66,6 +72,22 @@ namespace UnitTests_Coded
         public void LogTests()
         {
             _logger.Info($"{DateTime.Now} - Confirm visually ");
+        }
+
+        [Test]
+        public void LogPerformanceTest()
+        {
+            var sw = Stopwatch.StartNew();
+            Parallel.For(0, 1000, i =>
+            {
+                Parallel.For(0, 1000, j =>
+                {
+                    _logger.Info($"{i}:{j}");
+                });
+            });
+            Console.WriteLine(sw.Elapsed);
+            LogManager.Flush(TimeSpan.FromHours(1));
+            Console.WriteLine(sw.Elapsed);
         }
     }
 }
