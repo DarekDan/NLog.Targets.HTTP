@@ -122,7 +122,17 @@ namespace NLog.Targets.Http
             set => _maxQueueSize = value < 1 ? int.MaxValue : value;
         }
 
-        public string ContentType { get; set; } = "application/json";
+        public string ContentType
+        {
+            get => _contentType;
+            set
+            {
+                _contentType = value;
+                _contentTypeHeader = null;
+            }
+        }
+        private string _contentType = "application/json";
+        private MediaTypeHeaderValue _contentTypeHeader = null;
 
         public string Accept
         {
@@ -202,9 +212,9 @@ namespace NLog.Targets.Http
         // ReSharper disable once IdentifierTypo
         [Obsolete] public bool UseNagleAlgorithm { get; set; } = true;
 
-        private async Task ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
+        private async Task ProcessChunk(ArraySegment<byte> message, List<StrongBox<byte[]>> stack)
         {
-            if (!await SendFast(sb.ToString()).ConfigureAwait(false))
+            if (!await SendFast(message).ConfigureAwait(false))
                 stack.ForEach(s => _taskQueue.Enqueue(s));
         }
 
@@ -218,12 +228,14 @@ namespace NLog.Targets.Http
         private async Task Start(CancellationToken cancellationToken)
         {
             var stack = new List<StrongBox<byte[]>>();
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 stack.Clear();
-                var builder = BuildChunk(stack, cancellationToken);
 
-                if (builder.Length > 0)
+                var message = BuildMessageChunk(stack, cancellationToken);
+
+                if (message.Count > 0)
                 {
                     if (_hasHttpError)
                     {
@@ -231,7 +243,7 @@ namespace NLog.Targets.Http
                         {
                             await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
                             var delay = Task.Delay(1, CancellationToken.None);
-                            FlushError?.Invoke(this, new FlushErrorEventArgs(builder.ToString()));
+                            FlushError?.Invoke(this, new FlushErrorEventArgs(Encoding.UTF8.GetString(message.Array, 0, message.Count)));
                             await delay; // ensure semaphore is entered for at least 1ms for flush detection.
                         }
                         finally
@@ -241,9 +253,10 @@ namespace NLog.Targets.Http
                     }
                     else
                     {
-                        await ProcessChunk(builder, stack).ConfigureAwait(false);
+                        await ProcessChunk(message, stack).ConfigureAwait(false);
 
                         if (_hasHttpError)
+                        {
                             try
                             {
                                 // Reduce stress
@@ -253,6 +266,7 @@ namespace NLog.Targets.Http
                             {
                                 InternalLogger.Info($"HTTP Logger {tce.GetBaseException()}");
                             }
+                        }
                     }
                 }
 
@@ -260,33 +274,59 @@ namespace NLog.Targets.Http
             }
         }
 
-        private StringBuilder BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
+        private static readonly byte[] JsonArrayStart = Encoding.UTF8.GetBytes("[");
+        private static readonly byte[] JsonArrayEnd = Encoding.UTF8.GetBytes("]");
+        private static readonly byte[] JsonArrayDelimit = Encoding.UTF8.GetBytes(", ");
+        private static readonly byte[] JsonNewline = Encoding.UTF8.GetBytes(System.Environment.NewLine);
+
+        private ArraySegment<byte> BuildMessageChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
         {
-            var builder = new StringBuilder();
             var counter = 0;
-            if (BatchAsJsonArray)
-                builder.Append("[");
-            while (!_taskQueue.IsEmpty)
+
+            System.IO.MemoryStream memoryStream = null;
+            while (_taskQueue.TryDequeue(out var message))
             {
-                if (_taskQueue.TryDequeue(out var message))
+                if (memoryStream == null)
                 {
-                    ++counter;
-                    builder.AppendLine(InMemoryCompression
-                        ? Utility.Unzip(message.Value)
-                        : Encoding.UTF8.GetString(message.Value));
-                    stack.Add(message);
-                    // ReSharper disable once RedundantAssignment
-                    message = null; //needed to reduce stress on memory 
+                    memoryStream = new System.IO.MemoryStream();
+                    if (BatchAsJsonArray)
+                        memoryStream.Write(JsonArrayStart, 0, JsonArrayStart.Length);
+                }
+                else
+                {
+                    if (BatchAsJsonArray)
+                        memoryStream.Write(JsonArrayDelimit, 0, JsonArrayDelimit.Length);
+                    else
+                        memoryStream.Write(JsonNewline, 0, JsonNewline.Length);
                 }
 
+                ++counter;
+                if (InMemoryCompression)
+                {
+                    var unzipped = Encoding.UTF8.GetBytes(Utility.Unzip(message.Value));
+                    memoryStream.Write(unzipped, 0, unzipped.Length);
+                }
+                else
+                {
+                    memoryStream.Write(message.Value, 0, message.Value.Length);
+                }
+                memoryStream.Write(JsonNewline, 0, JsonNewline.Length);
+
+                stack.Add(message);
+                
                 if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
-                if (!_taskQueue.IsEmpty)
-                    builder.Append(BatchAsJsonArray ? ", " : Environment.NewLine);
             }
 
-            if (BatchAsJsonArray)
-                builder.Append("]");
-            return builder;
+            if (memoryStream != null)
+            {
+                if (BatchAsJsonArray)
+                    memoryStream.Write(JsonArrayEnd, 0, JsonArrayEnd.Length);
+
+                var buffer = memoryStream.GetBuffer();
+                return new ArraySegment<byte>(buffer, 0, (int)memoryStream.Length);
+            }
+
+            return default;
         }
 
         protected override void CloseTarget()
@@ -336,7 +376,7 @@ namespace NLog.Targets.Http
         ///     <value>true</value>
         ///     if succeeded
         /// </returns>
-        private async Task<bool> SendFast(string message)
+        private async Task<bool> SendFast(ArraySegment<byte> message)
         {
             await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token).ConfigureAwait(false);
             try
@@ -345,11 +385,15 @@ namespace NLog.Targets.Http
                 var method = GetHttpMethodsToUseOrDefault();
                 var request = new HttpRequestMessage(method, string.Empty)
                 {
-                    Content = new StringContent(message, Encoding.UTF8, ContentType)
+                    Content = new ByteArrayContent(message.Array, message.Offset, message.Count)
                 };
+                var contentType = _contentTypeHeader ?? (_contentTypeHeader = new MediaTypeHeaderValue(string.IsNullOrEmpty(ContentType) ? "text/plain" : ContentType)
+                {
+                    CharSet = Encoding.UTF8.WebName
+                });
+                request.Content.Headers.ContentType = contentType;
 
-
-                var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
 #if NETFRAMEWORK || NETSTANDARD
                 if ((int)httpResponseMessage.StatusCode == 429)
 #else
@@ -468,7 +512,7 @@ namespace NLog.Targets.Http
                     }
                 }
 
-                var authorization = Authorization?.Render(nullEvent) ?? string.Empty;
+                var authorization = Authorization?.Render(nullEvent);
                 if (!string.IsNullOrWhiteSpace(authorization))
                 {
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader(authorization);
