@@ -225,6 +225,8 @@ namespace NLog.Targets.Http
 
                 if (builder.Length > 0)
                 {
+                    await ProcessChunk(builder, stack).ConfigureAwait(false);
+
                     if (_hasHttpError)
                     {
                         try
@@ -238,21 +240,16 @@ namespace NLog.Targets.Http
                         {
                             _conversationActiveFlag.Release();
                         }
-                    }
-                    else
-                    {
-                        await ProcessChunk(builder, stack).ConfigureAwait(false);
 
-                        if (_hasHttpError)
-                            try
-                            {
-                                // Reduce stress
-                                await Task.Delay(HttpErrorRetryTimeout, cancellationToken).ConfigureAwait(false);
-                            }
-                            catch (TaskCanceledException tce)
-                            {
-                                InternalLogger.Info($"HTTP Logger {tce.GetBaseException()}");
-                            }
+                        try
+                        {
+                            // Reduce stress
+                            await Task.Delay(HttpErrorRetryTimeout, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (TaskCanceledException tce)
+                        {
+                            InternalLogger.Info($"HTTP Logger {tce.GetBaseException()}");
+                        }
                     }
                 }
 
