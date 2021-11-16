@@ -378,7 +378,7 @@ namespace NLog.Targets.Http
                 _hasHttpError = true;
                 return false;
             }
-#elif NETCOREAPP_OR_GREATER
+#elif NETCOREAPP3_1_OR_GREATER
             catch (TaskCanceledException ex)
             {
                 if (ex.Message.Contains("Timeout"))
