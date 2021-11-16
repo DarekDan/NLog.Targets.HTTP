@@ -372,13 +372,11 @@ namespace NLog.Targets.Http
                 _hasHttpError = true;
                 return false;
             }
-#if NET5_0_OR_GREATER
             catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
             {
                 _hasHttpError = true;
                 return false;
             }
-#elif NETCOREAPP3_1_OR_GREATER
             catch (TaskCanceledException ex)
             {
                 if (ex.Message.Contains("Timeout"))
@@ -390,7 +388,6 @@ namespace NLog.Targets.Http
                     return false;
                 }
             }
-#endif
             catch (Exception ex)
             {
                 InternalLogger.Warn(ex, "Unknown exception occured");
