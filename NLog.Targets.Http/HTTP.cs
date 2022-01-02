@@ -398,7 +398,7 @@ namespace NLog.Targets.Http
 
         private AuthenticationHeaderValue GetAuthorizationHeader()
         {
-            var parts = Authorization?.Render(LogEventInfo.CreateNullEvent()).Split(' ') ?? new []{String.Empty};
+            var parts = Authorization?.Render(LogEventInfo.CreateNullEvent()).Split(' ') ?? new[] { string.Empty };
             return parts.Length == 1
                 ? new AuthenticationHeaderValue(parts[0])
                 : new AuthenticationHeaderValue(parts[0], string.Join(" ", parts.Skip(1)));
@@ -464,9 +464,12 @@ namespace NLog.Targets.Http
                         var cred = proxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
                             ? new NetworkCredential
-                                { UserName = proxyUser, Password = ProxyPassword?.Render(nullEvent) ?? String.Empty }
+                                { UserName = proxyUser, Password = ProxyPassword?.Render(nullEvent) ?? string.Empty }
                             : new NetworkCredential
-                                { Domain = cred[0], UserName = cred[1], Password = ProxyPassword?.Render(nullEvent) ?? String.Empty };
+                            {
+                                Domain = cred[0], UserName = cred[1],
+                                Password = ProxyPassword?.Render(nullEvent) ?? string.Empty
+                            };
                     }
                 }
 

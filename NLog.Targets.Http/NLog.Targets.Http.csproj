@@ -13,10 +13,12 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.19</Version>
+    <Version>1.0.20</Version>
     <PackageIcon>nlog-http.png</PackageIcon>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <PackageReleaseNotes>
+      Version 1.0.20
+      - Pre-emptively addressing layout rendering related bugs
       Version 1.0.19
       - Reduced memory stress and improved performance by 25%
       Version 1.0.18
