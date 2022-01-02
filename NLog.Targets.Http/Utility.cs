@@ -17,6 +17,7 @@ namespace NLog.Targets.Http
                 {
                     msi.CopyTo(gs);
                 }
+
                 return mso.ToArray();
             }
         }
@@ -30,7 +31,22 @@ namespace NLog.Targets.Http
                 {
                     gs.CopyTo(mso);
                 }
+
                 return Encoding.UTF8.GetString(mso.ToArray());
+            }
+        }
+
+        public static byte[] UnzipAsBytes(byte[] bytes)
+        {
+            using (var msInput = new MemoryStream(bytes))
+            using (var msOutput = new MemoryStream())
+            {
+                using (var zipStream = new GZipStream(msInput, CompressionMode.Decompress))
+                {
+                    zipStream.CopyTo(msOutput);
+                }
+
+                return msOutput.ToArray();
             }
         }
     }
