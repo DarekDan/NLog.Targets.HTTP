@@ -398,7 +398,7 @@ namespace NLog.Targets.Http
 
         private AuthenticationHeaderValue GetAuthorizationHeader()
         {
-            var parts = Authorization.Render(LogEventInfo.CreateNullEvent()).Split(' ');
+            var parts = Authorization?.Render(LogEventInfo.CreateNullEvent()).Split(' ') ?? new []{String.Empty};
             return parts.Length == 1
                 ? new AuthenticationHeaderValue(parts[0])
                 : new AuthenticationHeaderValue(parts[0], string.Join(" ", parts.Skip(1)));
@@ -447,12 +447,12 @@ namespace NLog.Targets.Http
                 foreach (var header in Headers.Where(w =>
                              w != null &&
                              !string.IsNullOrWhiteSpace(w.Name) &&
-                             !string.IsNullOrWhiteSpace(w.Value.Render(nullEvent))))
+                             !string.IsNullOrWhiteSpace(w.Value?.Render(nullEvent))))
                     _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value.Render(nullEvent));
 
                 if (_handler.UseProxy)
                 {
-                    var proxyUser = ProxyUser.Render(nullEvent);
+                    var proxyUser = ProxyUser?.Render(nullEvent);
                     var useDefaultCredentials = string.IsNullOrWhiteSpace(proxyUser);
 
                     // UseProxy will not be set, if proxyUrl is null or whitespace (above, few lines)
@@ -464,9 +464,9 @@ namespace NLog.Targets.Http
                         var cred = proxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
                             ? new NetworkCredential
-                                { UserName = proxyUser, Password = ProxyPassword.Render(nullEvent) }
+                                { UserName = proxyUser, Password = ProxyPassword?.Render(nullEvent) ?? String.Empty }
                             : new NetworkCredential
-                                { Domain = cred[0], UserName = cred[1], Password = ProxyPassword.Render(nullEvent) };
+                                { Domain = cred[0], UserName = cred[1], Password = ProxyPassword?.Render(nullEvent) ?? String.Empty };
                     }
                 }
 
