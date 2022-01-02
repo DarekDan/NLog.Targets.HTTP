@@ -220,43 +220,33 @@ namespace NLog.Targets.Http
             var stack = new List<StrongBox<byte[]>>();
             while (!cancellationToken.IsCancellationRequested)
             {
-                stack.Clear();
-                var builder = BuildChunk(stack, cancellationToken);
-
-                if (builder.Length > 0)
+                if (_taskQueue.IsEmpty)
                 {
-                    if (_hasHttpError)
-                    {
-                        try
-                        {
-                            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
-                            var delay = Task.Delay(1, CancellationToken.None);
-                            FlushError?.Invoke(this, new FlushErrorEventArgs(builder.ToString()));
-                            await delay; // ensure semaphore is entered for at least 1ms for flush detection.
-                        }
-                        finally
-                        {
-                            _conversationActiveFlag.Release();
-                        }
-                    }
-                    else
-                    {
-                        await ProcessChunk(builder, stack).ConfigureAwait(false);
+                    await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
+                    continue;
+                }
 
-                        if (_hasHttpError)
-                            try
-                            {
-                                // Reduce stress
-                                await Task.Delay(HttpErrorRetryTimeout, cancellationToken).ConfigureAwait(false);
-                            }
-                            catch (TaskCanceledException tce)
-                            {
-                                InternalLogger.Info($"HTTP Logger {tce.GetBaseException()}");
-                            }
+                if (_hasHttpError)
+                {
+                    try
+                    {
+                        await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
+                        await Task.Delay(HttpErrorRetryTimeout, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                    {
+                        InternalLogger.Info($"HTTP Logger: {exception.Message}");
+                    }
+                    finally
+                    {
+                        _hasHttpError = false;
+                        _conversationActiveFlag.Release();
                     }
                 }
 
-                await Task.Delay(1, cancellationToken);
+                stack.Clear();
+                var builder = BuildChunk(stack, cancellationToken);
+                await ProcessChunk(builder, stack).ConfigureAwait(false);
             }
         }
 
@@ -355,12 +345,11 @@ namespace NLog.Targets.Http
 #else
                 if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
 #endif
-                    // We should respect 429.
+                    // Respect 429.
                     await Task.Delay(7500).ConfigureAwait(false);
 
-                var isSuccess = httpResponseMessage.IsSuccessStatusCode;
-                _hasHttpError = !isSuccess;
-                return isSuccess;
+                _hasHttpError = !httpResponseMessage.IsSuccessStatusCode;
+                return !_hasHttpError;
             }
             catch (WebException)
             {
@@ -437,7 +426,8 @@ namespace NLog.Targets.Http
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
                 foreach (var header in Headers.Where(w =>
-                    !string.IsNullOrWhiteSpace(w.Name) && !string.IsNullOrWhiteSpace(w.Value.Render(nullEvent))))
+                             !string.IsNullOrWhiteSpace(w.Name) &&
+                             !string.IsNullOrWhiteSpace(w.Value.Render(nullEvent))))
                     _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value.Render(nullEvent));
 
                 if (_handler.UseProxy)
