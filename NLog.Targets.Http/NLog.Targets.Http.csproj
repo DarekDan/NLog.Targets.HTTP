@@ -1,7 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netstandard2.0;netcoreapp3.1;net5.0</TargetFrameworks>
+    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netstandard2.0;netcoreapp3.1;net5.0;net6.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
     <Description>An NLog target for Http log entries submission (works wih Splunk HEC)</Description>
     <Authors>Luca Giordano, Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
@@ -12,74 +13,77 @@
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.17</Version>
+    <Version>1.0.18</Version>
     <PackageIcon>nlog-http.png</PackageIcon>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
-    <PackageReleaseNotes>Version 1.0.17
-- Bug fix for HTTP error flagg never reset
-- Minor code optimization
-Version 1.0.16
-- Bug fix related to composing HTTP payload
-- New feature to package messages as JSON array instead of separating by new line.
-- Memory compression disabled by default
-Version 1.0.14
-- Bug fix for Flush
-Version 1.0.13
-- await/async fixes
-Version 1.0.12
-- Minor potential bug fix for use of null event 
-Version 1.0.11
-- Added support for Layout element in ProxyUser, ProxyPassword, Authorization and custom Headers value.
-Version 1.0.10
-- ProxyUrl has been converted to a Layout element and can now be dynamic
-Version 1.0.9
-- Added support for additional headers
-Version 1.0.8
-- Brought back support for .Net Standard 2.0       
-Version 1.0.7
-- Bug fix #17 for .Net Core
-Version 1.0.5
-- Wraped url parameter with Layout to allow config settings assignment
-- Flush error event, Keepalive support, error timeout, refactor
-Version 1.0.4
-- Signed assemblies
-- Added packaging for .Net Core 3.1 and .Net 5.0
-Version 1.0.3
-- Updated to latest NLog version
-- Added universalTime option to unixtime renderer
-Version 1.0.2
-- minor performance improvements
-- code refactoring
-- updated documentation
-- sample command-line app for code profiling
-Version 1.0.1
-- Refactored for a single HttpClient as HttpWebRequest was creating too many connection in TIMED_WAIT state under load.
-- Upgraded .Net Standard to 2.1 and introduced support for Core 3.0 and Framework 4.8
-Version 1.0.0
-- Official release
-Version 0.0.8
-- added support for Nagle algorithm.
-Version 0.0.7
-- pulling default properties from ServicePointManager
-Version 0.0.6
-- switching to default properties and changing behavior only of the selected ServicePoint
-Version 0.0.5
-- code flow optimizations
-Version 0.0.4
-- Changed Expect100Continue to the default value of true
-Version 0.0.3
-- Added support for proxy server configuration.
-Version 0.0.2
-- Thanks to Alan Barber (https://github.com/AlanBarber) for NuGet build scripts and inspiration for this Http Target (his Splunk target https://github.com/AlanBarber/NLog.Targets.Splunk).
-- Thanks to Nate McMaster (https://natemcmaster.com/blog/2017/03/09/vs2015-to-vs2017-upgrade/) and Derek Comartin (https://codeopinion.com/converting-a-library-to-netstandard/) for conversion tips.
-Version 0.0.1
-- Big thanks to Stan Smith for insiting to make it lean and performant.
-- First publish to NuGet.
-</PackageReleaseNotes>    
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>    
-    <SignAssembly>true</SignAssembly>    
-    <AssemblyOriginatorKeyFile>DarekDan.snk</AssemblyOriginatorKeyFile>    
-    <DelaySign>false</DelaySign>    
+    <PackageReleaseNotes>
+      Version 1.0.18
+      - Bug fixes and performance improvements
+      Version 1.0.17
+      - Bug fix for HTTP error flagg never reset
+      - Minor code optimization
+      Version 1.0.16
+      - Bug fix related to composing HTTP payload
+      - New feature to package messages as JSON array instead of separating by new line.
+      - Memory compression disabled by default
+      Version 1.0.14
+      - Bug fix for Flush
+      Version 1.0.13
+      - await/async fixes
+      Version 1.0.12
+      - Minor potential bug fix for use of null event
+      Version 1.0.11
+      - Added support for Layout element in ProxyUser, ProxyPassword, Authorization and custom Headers value.
+      Version 1.0.10
+      - ProxyUrl has been converted to a Layout element and can now be dynamic
+      Version 1.0.9
+      - Added support for additional headers
+      Version 1.0.8
+      - Brought back support for .Net Standard 2.0
+      Version 1.0.7
+      - Bug fix #17 for .Net Core
+      Version 1.0.5
+      - Wraped url parameter with Layout to allow config settings assignment
+      - Flush error event, Keepalive support, error timeout, refactor
+      Version 1.0.4
+      - Signed assemblies
+      - Added packaging for .Net Core 3.1 and .Net 5.0
+      Version 1.0.3
+      - Updated to latest NLog version
+      - Added universalTime option to unixtime renderer
+      Version 1.0.2
+      - minor performance improvements
+      - code refactoring
+      - updated documentation
+      - sample command-line app for code profiling
+      Version 1.0.1
+      - Refactored for a single HttpClient as HttpWebRequest was creating too many connection in TIMED_WAIT state under load.
+      - Upgraded .Net Standard to 2.1 and introduced support for Core 3.0 and Framework 4.8
+      Version 1.0.0
+      - Official release
+      Version 0.0.8
+      - added support for Nagle algorithm.
+      Version 0.0.7
+      - pulling default properties from ServicePointManager
+      Version 0.0.6
+      - switching to default properties and changing behavior only of the selected ServicePoint
+      Version 0.0.5
+      - code flow optimizations
+      Version 0.0.4
+      - Changed Expect100Continue to the default value of true
+      Version 0.0.3
+      - Added support for proxy server configuration.
+      Version 0.0.2
+      - Thanks to Alan Barber (https://github.com/AlanBarber) for NuGet build scripts and inspiration for this Http Target (his Splunk target https://github.com/AlanBarber/NLog.Targets.Splunk).
+      - Thanks to Nate McMaster (https://natemcmaster.com/blog/2017/03/09/vs2015-to-vs2017-upgrade/) and Derek Comartin (https://codeopinion.com/converting-a-library-to-netstandard/) for conversion tips.
+      Version 0.0.1
+      - Big thanks to Stan Smith for insiting to make it lean and performant.
+      - First publish to NuGet.
+    </PackageReleaseNotes>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>DarekDan.snk</AssemblyOriginatorKeyFile>
+    <DelaySign>false</DelaySign>
     <ApplicationIcon>nlog.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -101,37 +105,31 @@ Version 0.0.1
   <!--.NET Standard 2.0 config -->
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
     <AssemblyTitle>NLog.Targets.Http .NET Standard 2.0</AssemblyTitle>
-    <DefineConstants>NETSTANDARD</DefineConstants>
   </PropertyGroup>
 
   <!--.NET Standard 2.1 config -->
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
     <AssemblyTitle>NLog.Targets.Http .NET Standard 2.1</AssemblyTitle>
-    <DefineConstants>NETSTANDARD</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.5 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net45' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.5</AssemblyTitle>
-    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.6.2 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net462' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.6.2</AssemblyTitle>
-    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.7.2 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net472' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.7.2</AssemblyTitle>
-    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.8 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net48' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.8</AssemblyTitle>
-    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
@@ -141,8 +139,8 @@ Version 0.0.1
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Net.Http.WebRequest" />
   </ItemGroup>
-  
-   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>Full</DebugType>
   </PropertyGroup>
 </Project>

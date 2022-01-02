@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -12,7 +13,7 @@ using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
 using NLog.Layouts;
-#if (NETSTANDARD || NET5_0 || NETCOREAPP3_1)
+#if (NETSTANDARD || NETCOREAPP)
 using System.Net.Security;
 #endif
 
@@ -25,6 +26,11 @@ namespace NLog.Targets.Http
         private static readonly Dictionary<string, HttpMethod> AvailableHttpMethods = new Dictionary<string, HttpMethod>
             { { "post", HttpMethod.Post }, { "get", HttpMethod.Get } };
 
+        private static readonly byte[] JsonArrayStart = Encoding.UTF8.GetBytes("[");
+        private static readonly byte[] JsonArrayEnd = Encoding.UTF8.GetBytes("]");
+        private static readonly byte[] JsonArrayDelimit = Encoding.UTF8.GetBytes(", ");
+        private static readonly byte[] JsonNewline = Encoding.UTF8.GetBytes(Environment.NewLine);
+
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
@@ -35,7 +41,7 @@ namespace NLog.Targets.Http
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
         private bool _expect100Continue = ServicePointManager.Expect100Continue;
-#if NET5_0 || NETCOREAPP3_1
+#if NETCOREAPP
         private SocketsHttpHandler _handler;
 #elif NETSTANDARD
         private HttpClientHandler _handler;
@@ -51,14 +57,8 @@ namespace NLog.Targets.Http
         private Layout _proxyUrl = Layout.FromString(string.Empty);
         private Layout _proxyUser = string.Empty;
         private Layout _url = Layout.FromString(string.Empty);
-
-        /// <summary>
-        ///     Invoked when the application is unable to flush due to a HTTP related error.
-        /// </summary>
-        public static event EventHandler<FlushErrorEventArgs> FlushError = (sender, args) =>
-        {
-            InternalLogger.Error(args.FailedMessage);
-        };
+        private string _contentType = "application/json";
+        private MediaTypeHeaderValue _contentTypeHeader;
 
         /// <summary>
         ///     URL to Post to
@@ -122,7 +122,16 @@ namespace NLog.Targets.Http
             set => _maxQueueSize = value < 1 ? int.MaxValue : value;
         }
 
-        public string ContentType { get; set; } = "application/json";
+        public string ContentType
+        {
+            get => _contentType;
+            set
+            {
+                _contentType = value;
+                _contentTypeHeader = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(value) ? "text/plain" : value)
+                    { CharSet = Encoding.UTF8.WebName };
+            }
+        }
 
         public string Accept
         {
@@ -202,9 +211,9 @@ namespace NLog.Targets.Http
         // ReSharper disable once IdentifierTypo
         [Obsolete] public bool UseNagleAlgorithm { get; set; } = true;
 
-        private async Task ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
+        private async Task ProcessChunk(ArraySegment<byte> bytes, List<StrongBox<byte[]>> stack)
         {
-            if (!await SendFast(sb.ToString()).ConfigureAwait(false))
+            if (!await SendFast(bytes).ConfigureAwait(false))
                 stack.ForEach(s => _taskQueue.Enqueue(s));
         }
 
@@ -227,7 +236,6 @@ namespace NLog.Targets.Http
                 }
 
                 if (_hasHttpError)
-                {
                     try
                     {
                         await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
@@ -242,7 +250,6 @@ namespace NLog.Targets.Http
                         _hasHttpError = false;
                         _conversationActiveFlag.Release();
                     }
-                }
 
                 stack.Clear();
                 var builder = BuildChunk(stack, cancellationToken);
@@ -250,39 +257,37 @@ namespace NLog.Targets.Http
             }
         }
 
-        private StringBuilder BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
+        private ArraySegment<byte> BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
         {
-            var builder = new StringBuilder();
-            var counter = 0;
-            if (BatchAsJsonArray)
-                builder.Append("[");
-            while (!_taskQueue.IsEmpty)
+            using (var memoryStream = new MemoryStream())
             {
-                if (_taskQueue.TryDequeue(out var message))
+                var counter = 0;
+                if (BatchAsJsonArray)
+                    memoryStream.Append(JsonArrayStart);
+                while (!_taskQueue.IsEmpty)
                 {
-                    ++counter;
-                    builder.AppendLine(InMemoryCompression
-                        ? Utility.Unzip(message.Value)
-                        : Encoding.UTF8.GetString(message.Value));
-                    stack.Add(message);
-                    // ReSharper disable once RedundantAssignment
-                    message = null; //needed to reduce stress on memory 
+                    if (_taskQueue.TryDequeue(out var message))
+                    {
+                        ++counter;
+                        memoryStream.Append(InMemoryCompression ? Utility.UnzipAsBytes(message.Value) : message.Value);
+                        stack.Add(message);
+                    }
+
+                    if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
+                    if (!_taskQueue.IsEmpty)
+                        memoryStream.Append(BatchAsJsonArray ? JsonArrayDelimit : JsonNewline);
                 }
 
-                if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
-                if (!_taskQueue.IsEmpty)
-                    builder.Append(BatchAsJsonArray ? ", " : Environment.NewLine);
+                if (BatchAsJsonArray)
+                    memoryStream.Append(JsonArrayEnd);
+                return new ArraySegment<byte>(memoryStream.GetBuffer(), 0, (int)memoryStream.Length);
             }
-
-            if (BatchAsJsonArray)
-                builder.Append("]");
-            return builder;
         }
 
         protected override void CloseTarget()
         {
             if (FlushBeforeShutdown)
-                AwaitCurrentMessagesToProcess();
+                AwaitCurrentMessagesToProcess().Wait();
             _terminateProcessor.Cancel(false);
             base.CloseTarget();
         }
@@ -290,26 +295,28 @@ namespace NLog.Targets.Http
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
             InternalLogger.Info($"Flushing {_taskQueue.Count} events");
-            AwaitCurrentMessagesToProcess();
+            AwaitCurrentMessagesToProcess().Wait();
             base.FlushAsync(asyncContinuation);
         }
 
-        private void AwaitCurrentMessagesToProcess()
+        private async Task AwaitCurrentMessagesToProcess()
         {
             // If there are messages to be processed
             // or no flags available 
             // just wait
-            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
+            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0)
+                await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
         }
 
         protected override void Write(LogEventInfo logEvent)
         {
-            SafeEnqueue(logEvent);
+            // NLogs Write is synchronous
+            SafeEnqueue(logEvent).Wait();
         }
 
-        private void SafeEnqueue(LogEventInfo logEvent)
+        private async Task SafeEnqueue(LogEventInfo logEvent)
         {
-            while (_taskQueue.Count >= MaxQueueSize) AwaitCurrentMessagesToProcess();
+            while (_taskQueue.Count >= MaxQueueSize) await AwaitCurrentMessagesToProcess();
             _taskQueue.Enqueue(new StrongBox<byte[]>
             {
                 Value = InMemoryCompression
@@ -326,7 +333,7 @@ namespace NLog.Targets.Http
         ///     <value>true</value>
         ///     if succeeded
         /// </returns>
-        private async Task<bool> SendFast(string message)
+        private async Task<bool> SendFast(ArraySegment<byte> message)
         {
             await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token).ConfigureAwait(false);
             try
@@ -335,9 +342,9 @@ namespace NLog.Targets.Http
                 var method = GetHttpMethodsToUseOrDefault();
                 var request = new HttpRequestMessage(method, string.Empty)
                 {
-                    Content = new StringContent(message, Encoding.UTF8, ContentType)
+                    Content = new ByteArrayContent(message.Array, message.Offset, message.Count)
                 };
-
+                request.Content.Headers.ContentType = _contentTypeHeader;
 
                 var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
 #if NETFRAMEWORK || NETSTANDARD
@@ -359,6 +366,17 @@ namespace NLog.Targets.Http
             catch (HttpRequestException)
             {
                 _hasHttpError = true;
+                return false;
+            }
+            catch (TaskCanceledException taskCanceledException) when
+                (taskCanceledException.InnerException is TimeoutException)
+            {
+                _hasHttpError = true;
+                return false;
+            }
+            catch (TaskCanceledException taskCanceledException)
+            {
+                InternalLogger.Warn(taskCanceledException, "Unknown timeout exception occurred");
                 return false;
             }
             catch (Exception ex)
@@ -396,7 +414,7 @@ namespace NLog.Targets.Http
             lock (_propertiesChanged)
             {
                 // ReSharper disable once UseObjectOrCollectionInitializer
-#if NET5_0 || NETCOREAPP3_1
+#if NETCOREAPP
                     _handler = new SocketsHttpHandler();
 #elif NETSTANDARD
                     _handler = new HttpClientHandler();
@@ -426,6 +444,7 @@ namespace NLog.Targets.Http
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
                 foreach (var header in Headers.Where(w =>
+                             w != null &&
                              !string.IsNullOrWhiteSpace(w.Name) &&
                              !string.IsNullOrWhiteSpace(w.Value.Render(nullEvent))))
                     _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value.Render(nullEvent));
@@ -450,16 +469,17 @@ namespace NLog.Targets.Http
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(Authorization.Render(nullEvent)))
+                if (!string.IsNullOrWhiteSpace(Authorization?.Render(nullEvent)))
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
 
                 if (IgnoreSslErrors)
                 {
-#if NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1
-                        _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
- (sender, certificate, chain, errors) => true};
+#if NETCOREAPP
+                    _handler.SslOptions = new SslClientAuthenticationOptions{
+                        RemoteCertificateValidationCallback = (sender, certificate, chain, errors) => true
+                    };
 #elif NETSTANDARD
-                        _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors)=>true;
+                    _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors) => true;
 #else
                     _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
 #endif

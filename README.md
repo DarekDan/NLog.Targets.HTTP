@@ -156,7 +156,18 @@ The "Unix Time" renderer supports `universalTime` option (boolean), just like th
 
 ### Sample stats
 On a Lenovo Xeon E3-1505M v6 powered laptop with 64GB of RAM and 3GB/s NVMe storage, 
-this HTTP target was able to consistenlty accept about 250,000 messages per second, 
-and 40,000+ per second received and processed by local Dockerized Splunk Enterpise 8.2.2. 
+this HTTP target was able to consistenlty accept about 100,000 messages per second, 
+and 55,555 per second received and processed by local Dockerized Splunk Enterpise 8.2.4. 
 Please note, that these stats depend heavily on the message size, batch size, and amount of bytes
 that can be submitted in a single POST message. 
+
+#### Running local Splunk
+
+```shell
+docker pull splunk/splunk:latest
+docker run -d -p 8000:8000 -p 8088:8088 -e "SPLUNK_START_ARGS=--accept-license" -e "SPLUNK_PASSWORD=Pass@W0rd" --name splunk splunk/splunk:latest
+```
+
+After a few moments, depeneding on your systems capacity,
+login to Splunk at http://localhost:8080/ with `admin` and `Pass@W0rd`. 
+The HttpEventCollector (HEC) will listen on port 8088.
