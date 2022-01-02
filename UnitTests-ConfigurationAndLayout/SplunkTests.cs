@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using NLog;
+using NLog.Common;
 using NUnit.Framework;
 
 namespace UnitTests_ConfigurationAndLayout
@@ -28,7 +29,7 @@ namespace UnitTests_ConfigurationAndLayout
         public void LoadTest()
         {
             Parallel.For(0, 1000000, i => _logger.Info($"{_guid} {i} at {DateTime.Now}"));
-            NLog.Common.InternalLogger.Debug(_guid.ToString());
+            InternalLogger.Debug(_guid.ToString());
         }
 
         [Test]

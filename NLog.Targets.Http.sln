@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30503.244
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32014.148
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NLog.Targets.Http", "NLog.Targets.Http\NLog.Targets.Http.csproj", "{849E3E42-2824-482A-8A81-1315BB128514}"
 EndProject
@@ -20,7 +20,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NLog.Target.Http.ProfilerShell", "NLog.Target.Http.ProfilerShell\NLog.Target.Http.ProfilerShell.csproj", "{37DCF74C-0CFE-417D-80FE-D1C40B56B3CF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests-Core", "UnitTests-Core\UnitTests-Core.csproj", "{0EC87A47-0FD8-48ED-BA35-3DC645AD3688}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnitTests-Core", "UnitTests-Core\UnitTests-Core.csproj", "{0EC87A47-0FD8-48ED-BA35-3DC645AD3688}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

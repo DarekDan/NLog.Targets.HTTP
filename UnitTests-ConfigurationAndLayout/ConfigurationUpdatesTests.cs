@@ -5,6 +5,7 @@
 using NLog;
 using NLog.Targets.Http;
 using NUnit.Framework;
+
 // ReSharper disable NotAccessedField.Local
 
 namespace UnitTests_ConfigurationAndLayout
@@ -12,9 +13,6 @@ namespace UnitTests_ConfigurationAndLayout
     [TestFixture]
     public class ConfigurationUpdatesTests
     {
-        private string _testDirectory;
-        private Logger _logger;
-
         [OneTimeSetUp]
         public void SetUp()
         {
@@ -22,13 +20,15 @@ namespace UnitTests_ConfigurationAndLayout
             _testDirectory = TestContext.CurrentContext.TestDirectory;
         }
 
+        private string _testDirectory;
+        private Logger _logger;
+
         [Test]
         public void HeadersAreNotEmpty()
         {
-            Assert.True(LogManager.Configuration.AllTargets.Count>0);
-            var splunkTarget = (HTTP) LogManager.Configuration.FindTargetByName("splunk");
-            Assert.That(splunkTarget.Headers.Count==2);
+            Assert.True(LogManager.Configuration.AllTargets.Count > 0);
+            var splunkTarget = (HTTP)LogManager.Configuration.FindTargetByName("splunk");
+            Assert.That(splunkTarget.Headers.Count == 2);
         }
-
     }
 }
