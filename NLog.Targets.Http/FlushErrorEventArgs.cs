@@ -3,7 +3,7 @@
 namespace NLog.Targets.Http
 {
     /// <summary>
-    /// The message that failed during flush.
+    ///     The message that failed during flush.
     /// </summary>
     public sealed class FlushErrorEventArgs : EventArgs
     {
@@ -13,7 +13,7 @@ namespace NLog.Targets.Http
         }
 
         /// <summary>
-        /// The message that was supposed to be sent.
+        ///     The message that was supposed to be sent.
         /// </summary>
         public string FailedMessage { get; set; }
     }

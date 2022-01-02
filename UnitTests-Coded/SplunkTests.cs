@@ -59,14 +59,14 @@ namespace UnitTests_Coded
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        private ILogger _logger;
-
         [OneTimeTearDown]
         public void TestShutdown()
         {
             LogManager.Flush(TimeSpan.FromMinutes(1));
             LogManager.Shutdown();
         }
+
+        private ILogger _logger;
 
         [Test]
         public void LogTests()
@@ -78,13 +78,7 @@ namespace UnitTests_Coded
         public void LogPerformanceTest()
         {
             var sw = Stopwatch.StartNew();
-            Parallel.For(0, 1000, i =>
-            {
-                Parallel.For(0, 1000, j =>
-                {
-                    _logger.Info($"{i}:{j}");
-                });
-            });
+            Parallel.For(0, 1000, i => { Parallel.For(0, 1000, j => { _logger.Info($"{i}:{j}"); }); });
             Console.WriteLine(sw.Elapsed);
             LogManager.Flush(TimeSpan.FromHours(1));
             Console.WriteLine(sw.Elapsed);

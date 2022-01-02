@@ -6,11 +6,10 @@ namespace UnitTests_Core
 {
     public class HttpResponseCodesTests
     {
-        
         [Test]
         public void Test429()
         {
-            HttpResponseMessage httpResponseMessage = new HttpResponseMessage(){StatusCode = HttpStatusCode.TooManyRequests};
+            var httpResponseMessage = new HttpResponseMessage { StatusCode = HttpStatusCode.TooManyRequests };
             Assert.True(httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests);
             Assert.True((int)httpResponseMessage.StatusCode == 429);
         }

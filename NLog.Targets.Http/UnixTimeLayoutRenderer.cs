@@ -8,7 +8,7 @@ namespace NLog.Targets.Http
     public class UnixTimeLayoutRenderer : LayoutRenderer
     {
         /// <summary>
-        /// Convert to UTC
+        ///     Convert to UTC
         /// </summary>
         // ReSharper disable once MemberCanBePrivate.Global
         public bool UniversalTime { get; set; }
