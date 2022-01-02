@@ -53,14 +53,6 @@ namespace NLog.Targets.Http
         private Layout _url = Layout.FromString(string.Empty);
 
         /// <summary>
-        ///     Invoked when the application is unable to flush due to a HTTP related error.
-        /// </summary>
-        public static event EventHandler<FlushErrorEventArgs> FlushError = (sender, args) =>
-        {
-            InternalLogger.Error(args.FailedMessage);
-        };
-
-        /// <summary>
         ///     URL to Post to
         /// </summary>
         [RequiredParameter]
@@ -282,7 +274,7 @@ namespace NLog.Targets.Http
         protected override void CloseTarget()
         {
             if (FlushBeforeShutdown)
-                AwaitCurrentMessagesToProcess();
+                AwaitCurrentMessagesToProcess().Wait();
             _terminateProcessor.Cancel(false);
             base.CloseTarget();
         }
@@ -290,26 +282,27 @@ namespace NLog.Targets.Http
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
             InternalLogger.Info($"Flushing {_taskQueue.Count} events");
-            AwaitCurrentMessagesToProcess();
+            AwaitCurrentMessagesToProcess().Wait();
             base.FlushAsync(asyncContinuation);
         }
 
-        private void AwaitCurrentMessagesToProcess()
+        private async Task AwaitCurrentMessagesToProcess()
         {
             // If there are messages to be processed
             // or no flags available 
             // just wait
-            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) Thread.Sleep(1);
+            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
         }
 
         protected override void Write(LogEventInfo logEvent)
         {
-            SafeEnqueue(logEvent);
+            // NLogs Write is synchronous
+            SafeEnqueue(logEvent).Wait();
         }
 
-        private void SafeEnqueue(LogEventInfo logEvent)
+        private async Task SafeEnqueue(LogEventInfo logEvent)
         {
-            while (_taskQueue.Count >= MaxQueueSize) AwaitCurrentMessagesToProcess();
+            while (_taskQueue.Count >= MaxQueueSize) await AwaitCurrentMessagesToProcess();
             _taskQueue.Enqueue(new StrongBox<byte[]>
             {
                 Value = InMemoryCompression
@@ -359,6 +352,17 @@ namespace NLog.Targets.Http
             catch (HttpRequestException)
             {
                 _hasHttpError = true;
+                return false;
+            }
+            catch (TaskCanceledException taskCanceledException) when
+                (taskCanceledException.InnerException is TimeoutException)
+            {
+                _hasHttpError = true;
+                return false;
+            }
+            catch (TaskCanceledException taskCanceledException)
+            {
+                InternalLogger.Warn(taskCanceledException, "Unknown timeout exception occurred");
                 return false;
             }
             catch (Exception ex)
