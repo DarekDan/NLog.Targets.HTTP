@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
 using NLog.Layouts;
-#if (NETSTANDARD || NET5_0 || NETCOREAPP3_1)
+#if (NETSTANDARD || NETCOREAPP)
 using System.Net.Security;
 #endif
 
@@ -35,7 +35,7 @@ namespace NLog.Targets.Http
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
         private bool _expect100Continue = ServicePointManager.Expect100Continue;
-#if NET5_0 || NETCOREAPP3_1
+#if NETCOREAPP 
         private SocketsHttpHandler _handler;
 #elif NETSTANDARD
         private HttpClientHandler _handler;
@@ -51,6 +51,8 @@ namespace NLog.Targets.Http
         private Layout _proxyUrl = Layout.FromString(string.Empty);
         private Layout _proxyUser = string.Empty;
         private Layout _url = Layout.FromString(string.Empty);
+        private string _contentType = "application/json";
+        private MediaTypeHeaderValue _contentTypeHeader = null;
 
         /// <summary>
         ///     URL to Post to
@@ -114,7 +116,15 @@ namespace NLog.Targets.Http
             set => _maxQueueSize = value < 1 ? int.MaxValue : value;
         }
 
-        public string ContentType { get; set; } = "application/json";
+        public string ContentType
+        {
+            get => _contentType;
+            set
+            {
+                _contentType = value;
+                _contentTypeHeader = null;
+            }
+        }
 
         public string Accept
         {
@@ -399,7 +409,7 @@ namespace NLog.Targets.Http
             lock (_propertiesChanged)
             {
                 // ReSharper disable once UseObjectOrCollectionInitializer
-#if NET5_0 || NETCOREAPP3_1
+#if NET6_0 || NET5_0 || NETCOREAPP3_1
                     _handler = new SocketsHttpHandler();
 #elif NETSTANDARD
                     _handler = new HttpClientHandler();
@@ -458,7 +468,7 @@ namespace NLog.Targets.Http
 
                 if (IgnoreSslErrors)
                 {
-#if NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1
+#if NETCOREAPP 
                         _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
  (sender, certificate, chain, errors) => true};
 #elif NETSTANDARD
