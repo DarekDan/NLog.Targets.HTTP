@@ -219,7 +219,6 @@ namespace NLog.Targets.Http
                 }
 
                 if (_hasHttpError)
-                {
                     try
                     {
                         await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
@@ -234,7 +233,6 @@ namespace NLog.Targets.Http
                         _hasHttpError = false;
                         _conversationActiveFlag.Release();
                     }
-                }
 
                 stack.Clear();
                 var builder = BuildChunk(stack, cancellationToken);
@@ -291,7 +289,8 @@ namespace NLog.Targets.Http
             // If there are messages to be processed
             // or no flags available 
             // just wait
-            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0) await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
+            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0)
+                await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
         }
 
         protected override void Write(LogEventInfo logEvent)
