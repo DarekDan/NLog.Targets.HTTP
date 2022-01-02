@@ -1,7 +1,6 @@
-Param(
-[Parameter(Mandatory=$True)]
-[string]$versionSuffix
-)
+[xml]$projectFile = Get-Content NLog.Targets.Http\NLog.Targets.Http.csproj
+$versionSuffix = $projectFile.Project.PropertyGroup.Version
+
 pushd .\NLog.Targets.Http
 Write-Output "Building release $versionSuffix nuget packages..."
 dotnet pack --configuration Release --include-symbols --version-suffix $versionSuffix

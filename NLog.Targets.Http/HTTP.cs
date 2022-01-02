@@ -11,7 +11,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog.Common;
 using NLog.Config;
-#if (NETCORE30 || NETSTANDARD21 || NET5_0 || NETCOREAPP3_1)
+using NLog.Layouts;
+#if (NETSTANDARD || NET5_0 || NETCOREAPP3_1)
 using System.Net.Security;
 #endif
 
@@ -22,39 +23,48 @@ namespace NLog.Targets.Http
     public class HTTP : TargetWithLayout
     {
         private static readonly Dictionary<string, HttpMethod> AvailableHttpMethods = new Dictionary<string, HttpMethod>
-            {{"post", HttpMethod.Post}, {"get", HttpMethod.Get}};
+            { { "post", HttpMethod.Post }, { "get", HttpMethod.Get } };
 
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
         private string _accept = "application/json";
-        private string _authorization;
+        private Layout _authorization;
 
         private int _batchSize = 1;
         private int _connectTimeout = 30000;
         private bool _expect100Continue = ServicePointManager.Expect100Continue;
-#if (NETCORE30 || NET5_0 || NETCOREAPP3_1)
+#if NET5_0 || NETCOREAPP3_1
         private SocketsHttpHandler _handler;
-#elif NETSTANDARD21
+#elif NETSTANDARD
         private HttpClientHandler _handler;
 #else
         private WebRequestHandler _handler;
 #endif
         private HttpClient _httpClient;
         private bool _ignoreSslErrors = true;
+        private bool _hasHttpError;
 
         private int _maxQueueSize = int.MaxValue;
-        private string _proxyPassword = string.Empty;
-        private string _proxyUrl = string.Empty;
-        private string _proxyUser = string.Empty;
-        private string _url;
+        private Layout _proxyPassword = string.Empty;
+        private Layout _proxyUrl = Layout.FromString(string.Empty);
+        private Layout _proxyUser = string.Empty;
+        private Layout _url = Layout.FromString(string.Empty);
+
+        /// <summary>
+        ///     Invoked when the application is unable to flush due to a HTTP related error.
+        /// </summary>
+        public static event EventHandler<FlushErrorEventArgs> FlushError = (sender, args) =>
+        {
+            InternalLogger.Error(args.FailedMessage);
+        };
 
         /// <summary>
         ///     URL to Post to
         /// </summary>
         [RequiredParameter]
-        public string Url
+        public Layout Url
         {
             get => _url;
             set
@@ -67,7 +77,7 @@ namespace NLog.Targets.Http
 
         public string Method { get; set; } = "POST";
 
-        public string Authorization
+        public Layout Authorization
         {
             get => _authorization;
             set
@@ -91,11 +101,20 @@ namespace NLog.Targets.Http
 
         public bool FlushBeforeShutdown { get; set; } = true;
 
+        /// <summary>
+        ///     The timeout between attempted HTTP requests.
+        /// </summary>
+        public int HttpErrorRetryTimeout { get; set; } = 500;
+
+        public bool KeepAlive { get; set; }
+
         public int BatchSize
         {
             get => _batchSize;
             set => _batchSize = value < 1 ? 1 : value;
         }
+
+        public bool BatchAsJsonArray { get; set; } = false;
 
         public int MaxQueueSize
         {
@@ -116,6 +135,10 @@ namespace NLog.Targets.Http
             }
         }
 
+        [ArrayParameter(typeof(NHttpHeader), "header")]
+        public IList<NHttpHeader> Headers { get; set; } = new List<NHttpHeader>();
+
+        // ReSharper disable once UnusedMember.Global
         [Obsolete] public int DefaultConnectionLimit { get; set; } = ServicePointManager.DefaultConnectionLimit;
 
         public bool Expect100Continue
@@ -140,9 +163,9 @@ namespace NLog.Targets.Http
             }
         }
 
-        public bool InMemoryCompression { get; set; } = true;
+        public bool InMemoryCompression { get; set; } = false;
 
-        public string ProxyUrl
+        public Layout ProxyUrl
         {
             get => _proxyUrl;
             set
@@ -153,7 +176,7 @@ namespace NLog.Targets.Http
             }
         }
 
-        public string ProxyUser
+        public Layout ProxyUser
         {
             get => _proxyUser;
             set
@@ -164,7 +187,7 @@ namespace NLog.Targets.Http
             }
         }
 
-        public string ProxyPassword
+        public Layout ProxyPassword
         {
             get => _proxyPassword;
             set
@@ -175,57 +198,95 @@ namespace NLog.Targets.Http
             }
         }
 
+        // ReSharper disable once UnusedMember.Global
+        // ReSharper disable once IdentifierTypo
         [Obsolete] public bool UseNagleAlgorithm { get; set; } = true;
 
-        private void ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
+        private async Task ProcessChunk(StringBuilder sb, List<StrongBox<byte[]>> stack)
         {
-            if (!SendFast(sb.ToString()))
+            if (!await SendFast(sb.ToString()).ConfigureAwait(false))
                 stack.ForEach(s => _taskQueue.Enqueue(s));
         }
 
         protected override void InitializeTarget()
         {
             base.InitializeTarget();
-            var task = Task.Factory.StartNew(() =>
+            var token = _terminateProcessor.Token;
+            _ = Task.Run(() => Start(token), token);
+        }
+
+        private async Task Start(CancellationToken cancellationToken)
+        {
+            var stack = new List<StrongBox<byte[]>>();
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                stack.Clear();
+                var builder = BuildChunk(stack, cancellationToken);
+
+                if (builder.Length > 0)
                 {
-                    var sb = new StringBuilder();
-                    var stack = new List<StrongBox<byte[]>>();
-                    while (!_terminateProcessor.IsCancellationRequested)
+                    if (_hasHttpError)
                     {
-                        var counter = 0;
-                        sb.Clear();
-                        stack.Clear();
-                        while (!_taskQueue.IsEmpty)
+                        try
                         {
-                            if (_taskQueue.TryDequeue(out var message))
-                            {
-                                ++counter;
-                                sb.AppendLine(InMemoryCompression
-                                    ? Utility.Unzip(message.Value)
-                                    : Encoding.UTF8.GetString(message.Value));
-                                stack.Add(message);
-                                if (!_taskQueue.IsEmpty)
-                                    sb.AppendLine();
-                                // ReSharper disable once RedundantAssignment
-                                message = null; //needed to reduce stress on memory 
-                            }
-
-                            if (counter == BatchSize)
-                            {
-                                ProcessChunk(sb, stack);
-                                sb.Clear();
-                                stack.Clear();
-                                counter = 0;
-                            }
+                            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
+                            var delay = Task.Delay(1, CancellationToken.None);
+                            FlushError?.Invoke(this, new FlushErrorEventArgs(builder.ToString()));
+                            await delay; // ensure semaphore is entered for at least 1ms for flush detection.
                         }
-
-                        if (sb.Length > 0)
-                            ProcessChunk(sb, stack);
-                        Thread.Sleep(1);
+                        finally
+                        {
+                            _conversationActiveFlag.Release();
+                        }
                     }
-                }, _terminateProcessor.Token, TaskCreationOptions.None,
-                TaskScheduler.Default);
-            while (task.Status != TaskStatus.Running) Thread.Sleep(1);
+                    else
+                    {
+                        await ProcessChunk(builder, stack).ConfigureAwait(false);
+
+                        if (_hasHttpError)
+                            try
+                            {
+                                // Reduce stress
+                                await Task.Delay(HttpErrorRetryTimeout, cancellationToken).ConfigureAwait(false);
+                            }
+                            catch (TaskCanceledException tce)
+                            {
+                                InternalLogger.Info($"HTTP Logger {tce.GetBaseException()}");
+                            }
+                    }
+                }
+
+                await Task.Delay(1, cancellationToken);
+            }
+        }
+
+        private StringBuilder BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
+        {
+            var builder = new StringBuilder();
+            var counter = 0;
+            if (BatchAsJsonArray)
+                builder.Append("[");
+            while (!_taskQueue.IsEmpty)
+            {
+                if (_taskQueue.TryDequeue(out var message))
+                {
+                    ++counter;
+                    builder.AppendLine(InMemoryCompression
+                        ? Utility.Unzip(message.Value)
+                        : Encoding.UTF8.GetString(message.Value));
+                    stack.Add(message);
+                    // ReSharper disable once RedundantAssignment
+                    message = null; //needed to reduce stress on memory 
+                }
+
+                if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
+                if (!_taskQueue.IsEmpty)
+                    builder.Append(BatchAsJsonArray ? ", " : Environment.NewLine);
+            }
+
+            if (BatchAsJsonArray)
+                builder.Append("]");
+            return builder;
         }
 
         protected override void CloseTarget()
@@ -238,6 +299,7 @@ namespace NLog.Targets.Http
 
         protected override void FlushAsync(AsyncContinuation asyncContinuation)
         {
+            InternalLogger.Info($"Flushing {_taskQueue.Count} events");
             AwaitCurrentMessagesToProcess();
             base.FlushAsync(asyncContinuation);
         }
@@ -274,28 +336,40 @@ namespace NLog.Targets.Http
         ///     <value>true</value>
         ///     if succeeded
         /// </returns>
-        private bool SendFast(string message)
+        private async Task<bool> SendFast(string message)
         {
-            _conversationActiveFlag.Wait(_terminateProcessor.Token);
+            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token).ConfigureAwait(false);
             try
             {
                 ResetHttpClientIfNeeded();
-
                 var method = GetHttpMethodsToUseOrDefault();
                 var request = new HttpRequestMessage(method, string.Empty)
                 {
                     Content = new StringContent(message, Encoding.UTF8, ContentType)
                 };
 
-                return _httpClient.SendAsync(request).ContinueWith(responseTask =>
-                {
-                    var httpResponseMessage = responseTask.Result;
-                    return httpResponseMessage.IsSuccessStatusCode;
-                }).Result;
+
+                var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
+#if NETFRAMEWORK || NETSTANDARD
+                if ((int)httpResponseMessage.StatusCode == 429)
+#else
+                if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
+#endif
+                    // We should respect 429.
+                    await Task.Delay(7500).ConfigureAwait(false);
+
+                var isSuccess = httpResponseMessage.IsSuccessStatusCode;
+                _hasHttpError = !isSuccess;
+                return isSuccess;
             }
-            catch (WebException wex)
+            catch (WebException)
             {
-                InternalLogger.Warn(wex, "Failed to communicate over HTTP");
+                _hasHttpError = true;
+                return false;
+            }
+            catch (HttpRequestException)
+            {
+                _hasHttpError = true;
                 return false;
             }
             catch (Exception ex)
@@ -316,9 +390,9 @@ namespace NLog.Targets.Http
 
         private AuthenticationHeaderValue GetAuthorizationHeader()
         {
-            var parts = Authorization.Split(' ');
+            var parts = Authorization.Render(LogEventInfo.CreateNullEvent()).Split(' ');
             return parts.Length == 1
-                ? new AuthenticationHeaderValue(Authorization)
+                ? new AuthenticationHeaderValue(parts[0])
                 : new AuthenticationHeaderValue(parts[0], string.Join(" ", parts.Skip(1)));
         }
 
@@ -333,50 +407,74 @@ namespace NLog.Targets.Http
             lock (_propertiesChanged)
             {
                 // ReSharper disable once UseObjectOrCollectionInitializer
-#if (NETCORE30 || NET5_0 || NETCOREAPP3_1)
+#if NET5_0 || NETCOREAPP3_1
                     _handler = new SocketsHttpHandler();
-#elif NETSTANDARD21
+#elif NETSTANDARD
                     _handler = new HttpClientHandler();
 #else
                 _handler = new WebRequestHandler();
 #endif
-                _handler.UseProxy = !string.IsNullOrWhiteSpace(ProxyUrl);
+                var nullEvent = LogEventInfo.CreateNullEvent();
+                var proxyUrl = ProxyUrl?.Render(nullEvent);
+                _handler.UseProxy = !string.IsNullOrWhiteSpace(proxyUrl);
                 _httpClient = new HttpClient(_handler)
                 {
-                    BaseAddress = new Uri(Url), Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
+                    BaseAddress = new Uri(Url.Render(nullEvent)),
+                    Timeout = TimeSpan.FromMilliseconds(ConnectTimeout)
                 };
-                _httpClient.DefaultRequestHeaders.ConnectionClose = true;
 
-                _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
+                if (!KeepAlive)
+                {
+                    _httpClient.DefaultRequestHeaders.ConnectionClose = true;
+                    _httpClient.DefaultRequestHeaders.ExpectContinue = Expect100Continue;
+                }
+                else
+                {
+                    _httpClient.DefaultRequestHeaders.Add("Keep-Alive", "timeout=5, max=1000");
+                }
+
                 _httpClient.DefaultRequestHeaders.Accept.Clear();
                 _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(Accept));
 
+                foreach (var header in Headers.Where(w =>
+                    !string.IsNullOrWhiteSpace(w.Name) && !string.IsNullOrWhiteSpace(w.Value.Render(nullEvent))))
+                    _httpClient.DefaultRequestHeaders.Add(header.Name, header.Value.Render(nullEvent));
+
                 if (_handler.UseProxy)
                 {
-                    var useDefaultCredentials = string.IsNullOrWhiteSpace(ProxyUser);
-                    _handler.Proxy = new WebProxy(new Uri(ProxyUrl))
-                        {UseDefaultCredentials = useDefaultCredentials};
+                    var proxyUser = ProxyUser.Render(nullEvent);
+                    var useDefaultCredentials = string.IsNullOrWhiteSpace(proxyUser);
+
+                    // UseProxy will not be set, if proxyUrl is null or whitespace (above, few lines)
+                    // ReSharper disable once AssignNullToNotNullAttribute
+                    _handler.Proxy = new WebProxy(new Uri(proxyUrl))
+                        { UseDefaultCredentials = useDefaultCredentials };
                     if (!useDefaultCredentials)
                     {
-                        var cred = ProxyUser.Split('\\');
+                        var cred = proxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
-                            ? new NetworkCredential {UserName = ProxyUser, Password = ProxyPassword}
+                            ? new NetworkCredential
+                                { UserName = proxyUser, Password = ProxyPassword.Render(nullEvent) }
                             : new NetworkCredential
-                                {Domain = cred[0], UserName = cred[1], Password = ProxyPassword};
+                                { Domain = cred[0], UserName = cred[1], Password = ProxyPassword.Render(nullEvent) };
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(Authorization))
+                if (!string.IsNullOrWhiteSpace(Authorization.Render(nullEvent)))
                     _httpClient.DefaultRequestHeaders.Authorization = GetAuthorizationHeader();
+
                 if (IgnoreSslErrors)
-#if (NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1)
+                {
+#if NETCOREAPP3_0 || NET5_0 || NETCOREAPP3_1
                         _handler.SslOptions = new SslClientAuthenticationOptions{RemoteCertificateValidationCallback =
  (sender, certificate, chain, errors) => true};
-#elif NETSTANDARD21
+#elif NETSTANDARD
                         _handler.ServerCertificateCustomValidationCallback = (message,certificate,chain,errors)=>true;
 #else
                     _handler.ServerCertificateValidationCallback = (sender, certificate, chain, errors) => true;
 #endif
+                }
+
                 _propertiesChanged.Clear();
             }
         }

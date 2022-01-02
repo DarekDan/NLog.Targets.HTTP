@@ -1,21 +1,44 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netcoreapp3.0;netcoreapp3.1;net5.0</TargetFrameworks>
+    <TargetFrameworks>net45;net462;net472;net48;netstandard2.1;netstandard2.0;netcoreapp3.1;net5.0</TargetFrameworks>
     <Title>NLog.Targets.Http</Title>
     <Description>An NLog target for Http log entries submission (works wih Splunk HEC)</Description>
-    <Authors>Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
+    <Authors>Luca Giordano, Dariusz Danielewski, Stan Smith and Julian Verdurmen</Authors>
     <CurrentYear>$([System.DateTime]::Now.ToString(yyyy))</CurrentYear>
-    <Copyright>Copyright (c) 2020 Dariusz Danielewski, Stan Smith and Julian Verdurmen, Copyright 2013-2020 Splunk, Inc.</Copyright>
+    <Copyright>Copyright (c) $(CurrentYear) Dariusz Danielewski, et al.; Copyright 2013-2020 Splunk, Inc.</Copyright>
     <PackageTags>nlog;nlog-target;splunk;logging</PackageTags>
-    <PackageIconUrl>https://raw.githubusercontent.com/DarekDan/NLog.Targets.HTTP/master/nlog.ico</PackageIconUrl>
     <PackageProjectUrl>https://github.com/DarekDan/NLog.Targets.HTTP</PackageProjectUrl>
     <PackageLicenseUrl></PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/DarekDan/NLog.Targets.HTTP</RepositoryUrl>
-    <Version>1.0.4</Version>
-    <ApplicationIcon>nlog.ico</ApplicationIcon>    
-    <PackageReleaseNotes>Version 1.0.4
+    <Version>1.0.16</Version>
+    <PackageIcon>nlog-http.png</PackageIcon>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <PackageReleaseNotes>Version 1.0.16
+- Bug fix related to composing HTTP payload
+- New feature to package messages as JSON array instead of separating by new line.
+- Memory compression disabled by default
+Version 1.0.14
+- Bug fix for Flush
+Version 1.0.13
+- await/async fixes
+Version 1.0.12
+- Minor potential bug fix for use of null event 
+Version 1.0.11
+- Added support for Layout element in ProxyUser, ProxyPassword, Authorization and custom Headers value.
+Version 1.0.10
+- ProxyUrl has been converted to a Layout element and can now be dynamic
+Version 1.0.9
+- Added support for additional headers
+Version 1.0.8
+- Brought back support for .Net Standard 2.0       
+Version 1.0.7
+- Bug fix #17 for .Net Core
+Version 1.0.5
+- Wraped url parameter with Layout to allow config settings assignment
+- Flush error event, Keepalive support, error timeout, refactor
+Version 1.0.4
 - Signed assemblies
 - Added packaging for .Net Core 3.1 and .Net 5.0
 Version 1.0.3
@@ -53,49 +76,59 @@ Version 0.0.1
     <PackageLicenseExpression>MIT</PackageLicenseExpression>    
     <SignAssembly>true</SignAssembly>    
     <AssemblyOriginatorKeyFile>DarekDan.snk</AssemblyOriginatorKeyFile>    
-    <DelaySign>false</DelaySign>
+    <DelaySign>false</DelaySign>    
+    <ApplicationIcon>nlog.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!--common NuGet package refs -->
   <ItemGroup>
-    <PackageReference Include="NLog" Version="4.7.7" />
+    <None Include="..\nlog-http.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+    <None Include="..\readme.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <!--common NuGet package refs -->
+  <ItemGroup>
+    <PackageReference Include="NLog" Version="4.7.9" />
     <PackageReference Include="System.Net.Http" Version="4.3.4" />
   </ItemGroup>
+
+  <!--.NET Standard 2.0 config -->
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
+    <AssemblyTitle>NLog.Targets.Http .NET Standard 2.0</AssemblyTitle>
+    <DefineConstants>NETSTANDARD</DefineConstants>
+  </PropertyGroup>
 
   <!--.NET Standard 2.1 config -->
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
     <AssemblyTitle>NLog.Targets.Http .NET Standard 2.1</AssemblyTitle>
-    <DefineConstants>NETSTANDARD21</DefineConstants>
-  </PropertyGroup>
-
-  <!--.NET Core 3.0 config -->
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp3.0' ">
-    <AssemblyTitle>NLog.Targets.Http .NET Core 3.0</AssemblyTitle>
-    <DefineConstants>NETCORE30</DefineConstants>
+    <DefineConstants>NETSTANDARD</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.5 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net45' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.5</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.6.2 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net462' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.6.2</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.7.2 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net472' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.7.2</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <!-- .NET 4.8 config -->
   <PropertyGroup Condition=" '$(TargetFramework)'=='net48' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.8</AssemblyTitle>
-    <DefineConstants>NETFULL</DefineConstants>
+    <DefineConstants>NETFRAMEWORK</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
