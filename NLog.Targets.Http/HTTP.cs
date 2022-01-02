@@ -259,7 +259,8 @@ namespace NLog.Targets.Http
 
         private ArraySegment<byte> BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
         {
-            using (var memoryStream = new MemoryStream())
+            _taskQueue.TryPeek(out var peek);
+            using (var memoryStream = new MemoryStream((int)(BatchSize * peek.Value.Length * 1.1)))
             {
                 var counter = 0;
                 if (BatchAsJsonArray)
