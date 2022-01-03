@@ -22,9 +22,6 @@ namespace NLog.Targets.Http
     // ReSharper disable once InconsistentNaming
     public class HTTP : TargetWithLayout
     {
-        private static readonly Dictionary<string, HttpMethod> AvailableHttpMethods = new Dictionary<string, HttpMethod>
-            { { "post", HttpMethod.Post }, { "get", HttpMethod.Get } };
-
         private static readonly byte[] JsonArrayStart = Encoding.UTF8.GetBytes("[");
         private static readonly byte[] JsonArrayEnd = Encoding.UTF8.GetBytes("]");
         private static readonly byte[] JsonArrayDelimit = Encoding.UTF8.GetBytes(", ");
@@ -67,7 +64,20 @@ namespace NLog.Targets.Http
             }
         }
 
-        public string Method { get; set; } = "POST";
+        public string Method
+        {
+            get => _method.ToString();
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    _method = HttpMethodVerb.POST;
+                else if (Enum.TryParse<HttpMethodVerb>(value.Trim().ToUpper(), out var method))
+                    _method = method;
+                else
+                    _method = HttpMethodVerb.POST;
+            }
+        }
+        private HttpMethodVerb _method = HttpMethodVerb.POST;
 
         public Layout Authorization
         {
@@ -391,7 +401,13 @@ namespace NLog.Targets.Http
 
         private HttpMethod GetHttpMethodsToUseOrDefault()
         {
-            return AvailableHttpMethods[Method.ToLower()] ?? HttpMethod.Post;
+            switch (_method)
+            {
+                case HttpMethodVerb.GET: return HttpMethod.Get;
+                case HttpMethodVerb.POST:
+                default:
+                    return HttpMethod.Post;
+            }
         }
 
         private static AuthenticationHeaderValue GetAuthorizationHeader(string authorization)

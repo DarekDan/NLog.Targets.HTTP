@@ -4,7 +4,7 @@ using System.Text;
 
 namespace NLog.Targets.Http
 {
-    public class Utility
+    internal class Utility
     {
         public static byte[] Zip(string str)
         {
