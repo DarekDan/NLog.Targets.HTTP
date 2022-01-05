@@ -270,23 +270,23 @@ namespace NLog.Targets.Http
         private ArraySegment<byte> BuildChunk(List<byte[]> stack, CancellationToken flushToken)
         {
             _taskQueue.TryPeek(out var peek);
+
             using (var memoryStream = new MemoryStream((int)(BatchSize * (peek?.Length ?? 0) * 1.1)))
             {
                 var counter = 0;
                 if (BatchAsJsonArray)
                     memoryStream.Append(JsonArrayStart);
-                while (!_taskQueue.IsEmpty)
+
+                while (_taskQueue.TryDequeue(out var message))
                 {
-                    if (_taskQueue.TryDequeue(out var message))
-                    {
-                        ++counter;
-                        memoryStream.Append(InMemoryCompression ? Utility.UnzipAsBytes(message) : message);
-                        stack.Add(message);
-                    }
+                    if (counter > 0)
+                        memoryStream.Append(BatchAsJsonArray ? JsonArrayDelimit : JsonNewline);
+
+                    ++counter;
+                    memoryStream.Append(InMemoryCompression ? Utility.UnzipAsBytes(message) : message);
+                    stack.Add(message);
 
                     if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
-                    if (!_taskQueue.IsEmpty)
-                        memoryStream.Append(BatchAsJsonArray ? JsonArrayDelimit : JsonNewline);
                 }
 
                 if (BatchAsJsonArray)
