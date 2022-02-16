@@ -58,7 +58,7 @@ namespace NLog.Targets.Http
         private Layout _proxyUser = string.Empty;
         private Layout _url = Layout.FromString(string.Empty);
         private string _contentType = "application/json";
-        private MediaTypeHeaderValue _contentTypeHeader;
+        private MediaTypeHeaderValue _contentTypeHeader = new MediaTypeHeaderValue("application/json") { CharSet = Encoding.UTF8.WebName };
 
         /// <summary>
         ///     URL to Post to
