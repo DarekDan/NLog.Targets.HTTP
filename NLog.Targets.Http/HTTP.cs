@@ -129,7 +129,7 @@ namespace NLog.Targets.Http
             {
                 _contentType = value;
                 _contentTypeHeader = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(value) ? "text/plain" : value)
-                    { CharSet = Encoding.UTF8.WebName };
+                { CharSet = Encoding.UTF8.WebName };
             }
         }
 
@@ -414,14 +414,16 @@ namespace NLog.Targets.Http
             if (!_propertiesChanged.Any()) return;
             lock (_propertiesChanged)
             {
+                _httpClient?.Dispose();
                 // ReSharper disable once UseObjectOrCollectionInitializer
 #if NETCOREAPP
-                    _handler = new SocketsHttpHandler();
+                _handler = new SocketsHttpHandler();
 #elif NETSTANDARD
-                    _handler = new HttpClientHandler();
+                _handler = new HttpClientHandler();
 #else
                 _handler = new WebRequestHandler();
 #endif
+
                 var nullEvent = LogEventInfo.CreateNullEvent();
                 var proxyUrl = ProxyUrl?.Render(nullEvent);
                 _handler.UseProxy = !string.IsNullOrWhiteSpace(proxyUrl);
@@ -458,16 +460,17 @@ namespace NLog.Targets.Http
                     // UseProxy will not be set, if proxyUrl is null or whitespace (above, few lines)
                     // ReSharper disable once AssignNullToNotNullAttribute
                     _handler.Proxy = new WebProxy(new Uri(proxyUrl))
-                        { UseDefaultCredentials = useDefaultCredentials };
+                    { UseDefaultCredentials = useDefaultCredentials };
                     if (!useDefaultCredentials)
                     {
                         var cred = proxyUser.Split('\\');
                         _handler.Proxy.Credentials = cred.Length == 1
                             ? new NetworkCredential
-                                { UserName = proxyUser, Password = ProxyPassword?.Render(nullEvent) ?? string.Empty }
+                            { UserName = proxyUser, Password = ProxyPassword?.Render(nullEvent) ?? string.Empty }
                             : new NetworkCredential
                             {
-                                Domain = cred[0], UserName = cred[1],
+                                Domain = cred[0],
+                                UserName = cred[1],
                                 Password = ProxyPassword?.Render(nullEvent) ?? string.Empty
                             };
                     }
@@ -479,7 +482,8 @@ namespace NLog.Targets.Http
                 if (IgnoreSslErrors)
                 {
 #if NETCOREAPP
-                    _handler.SslOptions = new SslClientAuthenticationOptions{
+                    _handler.SslOptions = new SslClientAuthenticationOptions
+                    {
                         RemoteCertificateValidationCallback = (sender, certificate, chain, errors) => true
                     };
 #elif NETSTANDARD
@@ -490,6 +494,15 @@ namespace NLog.Targets.Http
                 }
 
                 _propertiesChanged.Clear();
+            }
+        }
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+
+            if (disposing)
+            {
+                _httpClient?.Dispose();
             }
         }
     }
