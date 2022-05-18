@@ -264,7 +264,7 @@ namespace NLog.Targets.Http
 
         private ArraySegment<byte>? BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
         {
-            if (!_blockingCollection.TryTake(out var message))
+            if (!_blockingCollection.TryTake(out var message, -1, flushToken))
             {
                 return null;
             }
