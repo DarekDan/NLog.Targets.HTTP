@@ -34,6 +34,7 @@ namespace NLog.Targets.Http
         private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
         private readonly ConcurrentQueue<StrongBox<byte[]>> _taskQueue = new ConcurrentQueue<StrongBox<byte[]>>();
+        private readonly BlockingCollection<StrongBox<byte[]>> _blockingCollection;
         private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
         private string _accept = "application/json";
         private Layout _authorization;
@@ -211,10 +212,15 @@ namespace NLog.Targets.Http
         // ReSharper disable once IdentifierTypo
         [Obsolete] public bool UseNagleAlgorithm { get; set; } = true;
 
+        public HTTPAdSmart()
+        {
+            _blockingCollection = new BlockingCollection<StrongBox<byte[]>>(_taskQueue);
+        }
+
         private async Task ProcessChunk(ArraySegment<byte> bytes, List<StrongBox<byte[]>> stack)
         {
             if (!await SendFast(bytes).ConfigureAwait(false))
-                stack.ForEach(s => _taskQueue.Enqueue(s));
+                stack.ForEach(s => _blockingCollection.TryAdd(s));
         }
 
         protected override void InitializeTarget()
@@ -229,12 +235,6 @@ namespace NLog.Targets.Http
             var stack = new List<StrongBox<byte[]>>();
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_taskQueue.IsEmpty)
-                {
-                    await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
-                    continue;
-                }
-
                 if (_hasHttpError)
                     try
                     {
@@ -253,34 +253,52 @@ namespace NLog.Targets.Http
 
                 stack.Clear();
                 var builder = BuildChunk(stack, cancellationToken);
-                await ProcessChunk(builder, stack).ConfigureAwait(false);
+                if (!builder.HasValue)
+                {
+                    continue;
+                }
+
+                await ProcessChunk(builder.Value, stack).ConfigureAwait(false);
             }
         }
 
-        private ArraySegment<byte> BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
+        private ArraySegment<byte>? BuildChunk(List<StrongBox<byte[]>> stack, CancellationToken flushToken)
         {
-            _taskQueue.TryPeek(out var peek);
-            using (var memoryStream = new MemoryStream((int)(BatchSize * peek.Value.Length * 1.1)))
+            if (!_blockingCollection.TryTake(out var message))
+            {
+                return null;
+            }
+
+            using (var memoryStream = new MemoryStream((int)(BatchSize * message.Value.Length * 1.1)))
             {
                 var counter = 0;
                 if (BatchAsJsonArray)
-                    memoryStream.Append(JsonArrayStart);
-                while (!_taskQueue.IsEmpty)
                 {
-                    if (_taskQueue.TryDequeue(out var message))
-                    {
-                        ++counter;
-                        memoryStream.Append(InMemoryCompression ? Utility.UnzipAsBytes(message.Value) : message.Value);
-                        stack.Add(message);
-                    }
-
-                    if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
-                    if (!_taskQueue.IsEmpty)
-                        memoryStream.Append(BatchAsJsonArray ? JsonArrayDelimit : JsonNewline);
+                    memoryStream.Append(JsonArrayStart);
                 }
 
+                do
+                {
+                    if (counter > 0)
+                    {
+                        memoryStream.Append(BatchAsJsonArray ? JsonArrayDelimit : JsonNewline);
+                    }
+
+                    ++counter;
+                    memoryStream.Append(InMemoryCompression ? Utility.UnzipAsBytes(message.Value) : message.Value);
+                    stack.Add(message);
+
+                    if (counter == BatchSize && !flushToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                } while (_blockingCollection.TryTake(out message));
+
                 if (BatchAsJsonArray)
+                {
                     memoryStream.Append(JsonArrayEnd);
+                }
+
                 return new ArraySegment<byte>(memoryStream.GetBuffer(), 0, (int)memoryStream.Length);
             }
         }
@@ -318,7 +336,7 @@ namespace NLog.Targets.Http
         private async Task SafeEnqueue(LogEventInfo logEvent)
         {
             while (_taskQueue.Count >= MaxQueueSize) await AwaitCurrentMessagesToProcess();
-            _taskQueue.Enqueue(new StrongBox<byte[]>
+            _blockingCollection.TryAdd(new StrongBox<byte[]>
             {
                 Value = InMemoryCompression
                     ? Utility.Zip(Layout.Render(logEvent))
