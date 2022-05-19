@@ -212,7 +212,7 @@ namespace NLog.Targets.Http
         // ReSharper disable once IdentifierTypo
         [Obsolete] public bool UseNagleAlgorithm { get; set; } = true;
 
-        public HTTPAdSmart()
+        public HTTP()
         {
             _blockingCollection = new BlockingCollection<StrongBox<byte[]>>(_taskQueue);
         }
