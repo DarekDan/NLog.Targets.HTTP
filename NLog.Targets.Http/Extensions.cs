@@ -2,7 +2,7 @@
 
 namespace NLog.Targets.Http
 {
-    public static class Extensions
+    internal static class Extensions
     {
         public static void Append(this MemoryStream memoryStream, byte[] arrayBytes)
         {
