@@ -9,7 +9,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NLog.Common;
 using NLog.Config;
 using NLog.Layouts;
 #if (NETSTANDARD || NETCOREAPP)
@@ -20,34 +19,27 @@ namespace NLog.Targets.Http
 {
     [Target("HTTP")]
     // ReSharper disable once InconsistentNaming
-    public class HTTP : TargetWithLayout
+    public class HTTP : AsyncTaskTarget
     {
-        private static readonly byte[] JsonArrayStart = Encoding.UTF8.GetBytes("[");
-        private static readonly byte[] JsonArrayEnd = Encoding.UTF8.GetBytes("]");
-        private static readonly byte[] JsonArrayDelimit = Encoding.UTF8.GetBytes(", ");
-        private static readonly byte[] JsonNewline = Encoding.UTF8.GetBytes(Environment.NewLine);
+        private static readonly Encoding _utf8Encoding = new UTF8Encoding(false);   // No PreAmble BOM
+        private static readonly byte[] JsonArrayStart = _utf8Encoding.GetBytes("[");
+        private static readonly byte[] JsonArrayEnd = _utf8Encoding.GetBytes("]");
 
-        private readonly SemaphoreSlim _conversationActiveFlag = new SemaphoreSlim(1, 1);
         private readonly ConcurrentStack<string> _propertiesChanged = new ConcurrentStack<string>();
-        private readonly ConcurrentQueue<byte[]> _taskQueue = new ConcurrentQueue<byte[]>();
-        private readonly CancellationTokenSource _terminateProcessor = new CancellationTokenSource();
         private string _accept = "application/json";
         private Layout _authorization;
 
-        private int _batchSize = 1;
         private int _connectTimeout = 30000;
         private bool _expect100Continue = ServicePointManager.Expect100Continue;
         private HttpClient _httpClient;
         private bool _ignoreSslErrors = true;
-        private bool _hasHttpError;
 
-        private int _maxQueueSize = int.MaxValue;
         private Layout _proxyPassword = string.Empty;
         private Layout _proxyUrl = Layout.FromString(string.Empty);
         private Layout _proxyUser = string.Empty;
         private Layout _url = Layout.FromString(string.Empty);
         private string _contentType = "application/json";
-        private MediaTypeHeaderValue _contentTypeHeader = new MediaTypeHeaderValue("application/json") { CharSet = Encoding.UTF8.WebName };
+        private MediaTypeHeaderValue _contentTypeHeader = new MediaTypeHeaderValue("application/json") { CharSet = _utf8Encoding.WebName };
 
         /// <summary>
         ///     URL to Post to
@@ -101,27 +93,37 @@ namespace NLog.Targets.Http
             }
         }
 
-        public bool FlushBeforeShutdown { get; set; } = true;
+        [Obsolete] public bool FlushBeforeShutdown { get; set; } = true;
 
         /// <summary>
         ///     The timeout between attempted HTTP requests.
         /// </summary>
-        public int HttpErrorRetryTimeout { get; set; } = 500;
+        public int HttpErrorRetryTimeout
+        {
+            get => RetryDelayMilliseconds;
+            set => RetryDelayMilliseconds = value;
+        }
 
         public bool KeepAlive { get; set; }
-
-        public int BatchSize
-        {
-            get => _batchSize;
-            set => _batchSize = value < 1 ? 1 : value;
-        }
 
         public bool BatchAsJsonArray { get; set; } = false;
 
         public int MaxQueueSize
         {
-            get => _maxQueueSize;
-            set => _maxQueueSize = value < 1 ? int.MaxValue : value;
+            get => OverflowAction == Wrappers.AsyncTargetWrapperOverflowAction.Grow ? int.MaxValue : QueueLimit;
+            set
+            {
+                if (value < 1 || value == int.MaxValue)
+                {
+                    OverflowAction = Wrappers.AsyncTargetWrapperOverflowAction.Grow;    // No limit
+                    QueueLimit = 10000;
+                }
+                else
+                {
+                    OverflowAction = Wrappers.AsyncTargetWrapperOverflowAction.Block;   // Block on limit
+                    QueueLimit = value;
+                }
+            }
         }
 
         public string ContentType
@@ -129,8 +131,10 @@ namespace NLog.Targets.Http
             get => _contentType;
             set
             {
+                if (value == _contentType) return;
                 _contentType = string.IsNullOrWhiteSpace(value) ? "application/json" : value;
-                _contentTypeHeader = new MediaTypeHeaderValue(_contentType) { CharSet = Encoding.UTF8.WebName };
+                _contentTypeHeader = new MediaTypeHeaderValue(_contentType) { CharSet = _utf8Encoding.WebName };
+                NotifyPropertyChanged(nameof(ContentType));
             }
         }
 
@@ -173,7 +177,7 @@ namespace NLog.Targets.Http
             }
         }
 
-        public bool InMemoryCompression { get; set; } = false;
+        [Obsolete] public bool InMemoryCompression { get; set; } = false;
 
         public Layout ProxyUrl
         {
@@ -215,187 +219,91 @@ namespace NLog.Targets.Http
         public HTTP()
         {
             OptimizeBufferReuse = true; // Optimize RenderLogEvent()
+            BatchSize = 1; // No batching by default
+            OverflowAction = Wrappers.AsyncTargetWrapperOverflowAction.Grow; // No queue-limit by default
+            RetryCount = int.MaxValue; // Infinite retry by default
+            HttpErrorRetryTimeout = 500;
         }
 
-        private async Task ProcessChunk(ArraySegment<byte> bytes, List<byte[]> stack)
+        protected override Task WriteAsyncTask(LogEventInfo logEvent, CancellationToken cancellationToken)
         {
-            if (!await SendFast(bytes).ConfigureAwait(false))
+            throw new NotSupportedException();  // Never called
+        }
+
+        protected override Task WriteAsyncTask(IList<LogEventInfo> logEvents, CancellationToken cancellationToken)
+        {
+            var chunk = BuildChunk(logEvents);
+            return SendFast(chunk);
+        }
+
+        private ArraySegment<byte> BuildChunk(IList<LogEventInfo> logEvents)
+        {
+            if (logEvents.Count == 0)
+                return new ArraySegment<byte>(null, 0, 0);
+
+            var encoding = _utf8Encoding;
+            var firstPayloadString = RenderLogEvent(Layout, logEvents[0]);
+            var firstPayloadBytes = encoding.GetBytes(firstPayloadString);
+
+            using (var ms = new MemoryStream((int)(logEvents.Count * firstPayloadBytes.Length * 1.1)))
             {
-                foreach (var item in stack)
-                    _taskQueue.Enqueue(item);
-            }
-        }
-
-        protected override void InitializeTarget()
-        {
-            base.InitializeTarget();
-            var token = _terminateProcessor.Token;
-            _ = Task.Run(() => Start(token), token);
-        }
-
-        private async Task Start(CancellationToken cancellationToken)
-        {
-            var stack = new List<byte[]>();
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                if (_taskQueue.IsEmpty)
-                {
-                    await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
-                    continue;
-                }
-
-                if (_hasHttpError)
-                    try
-                    {
-                        await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token);
-                        await Task.Delay(HttpErrorRetryTimeout, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch (Exception exception)
-                    {
-                        InternalLogger.Info($"HTTP Logger: {exception.Message}");
-                    }
-                    finally
-                    {
-                        _hasHttpError = false;
-                        _conversationActiveFlag.Release();
-                    }
-
-                stack.Clear();
-                var builder = BuildChunk(stack, cancellationToken);
-                await ProcessChunk(builder, stack).ConfigureAwait(false);
-            }
-        }
-
-        private ArraySegment<byte> BuildChunk(List<byte[]> stack, CancellationToken flushToken)
-        {
-            _taskQueue.TryPeek(out var peek);
-
-            using (var memoryStream = new MemoryStream((int)(BatchSize * (peek?.Length ?? 0) * 1.1)))
-            {
-                var counter = 0;
                 if (BatchAsJsonArray)
-                    memoryStream.Append(JsonArrayStart);
+                    ms.Append(JsonArrayStart);
 
-                while (_taskQueue.TryDequeue(out var message))
+                ms.Append(firstPayloadBytes);
+
+                if (logEvents.Count > 1)
                 {
-                    if (counter > 0)
-                        memoryStream.Append(BatchAsJsonArray ? JsonArrayDelimit : JsonNewline);
+                    using (var sw = new StreamWriter(ms, encoding, bufferSize: 1024, leaveOpen: true))
+                    {
+                        for (int i = 1; i < logEvents.Count; ++i)
+                        {
+                            sw.Write(BatchAsJsonArray ? ", " : Environment.NewLine);
 
-                    ++counter;
-                    memoryStream.Append(InMemoryCompression ? Utility.UnzipAsBytes(message) : message);
-                    stack.Add(message);
-
-                    if (counter == BatchSize && !flushToken.IsCancellationRequested) break;
+                            var payload = RenderLogEvent(Layout, logEvents[i]);
+                            sw.Write(payload);
+                        }
+                    }
                 }
 
                 if (BatchAsJsonArray)
-                    memoryStream.Append(JsonArrayEnd);
-                return new ArraySegment<byte>(memoryStream.GetBuffer(), 0, (int)memoryStream.Length);
+                    ms.Append(JsonArrayEnd);
+
+                return new ArraySegment<byte>(ms.GetBuffer(), 0, (int)ms.Length);
             }
         }
 
-        protected override void CloseTarget()
+        protected override bool RetryFailedAsyncTask(Exception exception, CancellationToken cancellationToken, int retryCountRemaining, out TimeSpan retryDelay)
         {
-            if (FlushBeforeShutdown)
-                AwaitCurrentMessagesToProcess().Wait();
-            _terminateProcessor.Cancel(false);
-            base.CloseTarget();
-        }
-
-        protected override void FlushAsync(AsyncContinuation asyncContinuation)
-        {
-            InternalLogger.Info($"Flushing {_taskQueue.Count} events");
-            AwaitCurrentMessagesToProcess().ContinueWith(task => asyncContinuation(task.Exception));
-        }
-
-        private async Task AwaitCurrentMessagesToProcess()
-        {
-            // If there are messages to be processed
-            // or no flags available 
-            // just wait
-            while (!_taskQueue.IsEmpty || _conversationActiveFlag.CurrentCount == 0)
-                await Task.Delay(1, CancellationToken.None).ConfigureAwait(false);
-        }
-
-        protected override void Write(LogEventInfo logEvent)
-        {
-            var payload = RenderLogEvent(Layout, logEvent);
-            // NLogs Write is synchronous
-            SafeEnqueue(payload).Wait();
-        }
-
-        private async Task SafeEnqueue(string payload)
-        {
-            while (_taskQueue.Count >= MaxQueueSize) await AwaitCurrentMessagesToProcess().ConfigureAwait(false);
-
-            _taskQueue.Enqueue(InMemoryCompression
-                    ? Utility.Zip(payload)
-                    : Encoding.UTF8.GetBytes(payload));
+            retryDelay = TimeSpan.FromMilliseconds(HttpErrorRetryTimeout);  // Never increasing timeout
+            return retryCountRemaining > 0;
         }
 
         /// <summary>
         ///     Sends all the messages
         /// </summary>
         /// <param name="message"></param>
-        /// <returns>
-        ///     <value>true</value>
-        ///     if succeeded
-        /// </returns>
-        private async Task<bool> SendFast(ArraySegment<byte> message)
+        private async Task SendFast(ArraySegment<byte> message)
         {
-            await _conversationActiveFlag.WaitAsync(_terminateProcessor.Token).ConfigureAwait(false);
-            try
-            {
-                ResetHttpClientIfNeeded();
-                var method = GetHttpMethodsToUseOrDefault();
-                var request = new HttpRequestMessage(method, string.Empty)
-                {
-                    Content = new ByteArrayContent(message.Array, message.Offset, message.Count)
-                };
-                request.Content.Headers.ContentType = _contentTypeHeader;
+            ResetHttpClientIfNeeded();
 
-                var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            var method = GetHttpMethodsToUseOrDefault();
+            var request = new HttpRequestMessage(method, string.Empty)
+            {
+                Content = new ByteArrayContent(message.Array, message.Offset, message.Count)
+            };
+            request.Content.Headers.ContentType = _contentTypeHeader;
+
+            var httpResponseMessage = await _httpClient.SendAsync(request).ConfigureAwait(false);
 #if NETFRAMEWORK || NETSTANDARD
-                if ((int)httpResponseMessage.StatusCode == 429)
+            if ((int)httpResponseMessage.StatusCode == 429)
 #else
-                if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
+            if (httpResponseMessage.StatusCode == HttpStatusCode.TooManyRequests)
 #endif
-                    // Respect 429.
-                    await Task.Delay(7500).ConfigureAwait(false);
+                // Respect 429.
+                await Task.Delay(7500).ConfigureAwait(false);
 
-                _hasHttpError = !httpResponseMessage.IsSuccessStatusCode;
-                return !_hasHttpError;
-            }
-            catch (WebException)
-            {
-                _hasHttpError = true;
-                return false;
-            }
-            catch (HttpRequestException)
-            {
-                _hasHttpError = true;
-                return false;
-            }
-            catch (TaskCanceledException taskCanceledException) when
-                (taskCanceledException.InnerException is TimeoutException)
-            {
-                _hasHttpError = true;
-                return false;
-            }
-            catch (TaskCanceledException taskCanceledException)
-            {
-                InternalLogger.Warn(taskCanceledException, "Unknown timeout exception occurred");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                InternalLogger.Warn(ex, "Unknown exception occured");
-                return false;
-            }
-            finally
-            {
-                _conversationActiveFlag.Release();
-            }
+            httpResponseMessage.EnsureSuccessStatusCode();  // Throw if not a success code and trigger retry
         }
 
         private HttpMethod GetHttpMethodsToUseOrDefault()
@@ -424,7 +332,8 @@ namespace NLog.Targets.Http
 
         private void ResetHttpClientIfNeeded()
         {
-            if (!_propertiesChanged.Any()) return;
+            if (_propertiesChanged.IsEmpty) return;
+
             lock (_propertiesChanged)
             {
                 // ReSharper disable once UseObjectOrCollectionInitializer

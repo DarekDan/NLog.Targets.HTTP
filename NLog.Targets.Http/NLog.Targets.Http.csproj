@@ -102,7 +102,7 @@
 
   <!--common NuGet package refs -->
   <ItemGroup>
-    <PackageReference Include="NLog" Version="4.7.13" />
+    <PackageReference Include="NLog" Version="4.7.15" />
     <PackageReference Include="System.Net.Http" Version="4.3.4" />
   </ItemGroup>
 
