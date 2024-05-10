@@ -225,6 +225,17 @@ namespace NLog.Targets.Http
             HttpErrorRetryTimeout = 500;
         }
 
+
+        /// <inheritdoc />
+        protected override void CloseTarget()
+        {
+            var oldHttpClient = _httpClient;
+            NotifyPropertyChanged(nameof(Url)); // Ensure to create fresh HttpClient
+            _httpClient = null;
+            oldHttpClient?.Dispose();
+            base.CloseTarget();
+        }
+
         protected override Task WriteAsyncTask(LogEventInfo logEvent, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();  // Never called
@@ -336,6 +347,10 @@ namespace NLog.Targets.Http
 
             lock (_propertiesChanged)
             {
+                var oldHttpClient = _httpClient;
+                _httpClient = null;
+                oldHttpClient?.Dispose();
+
                 // ReSharper disable once UseObjectOrCollectionInitializer
 #if NETCOREAPP
                 var handler = new SocketsHttpHandler();
