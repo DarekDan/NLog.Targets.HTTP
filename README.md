@@ -172,6 +172,6 @@ docker run -d -p 8000:8000 -p 8088:8088 -e "SPLUNK_START_ARGS=--accept-license" 
 ```
 
 After a few moments, depeneding on your systems capacity,
-login to Splunk at http://localhost:8080/ with `admin` and `Pass@W0rd`. 
+login to Splunk at http://localhost:8000/ with `admin` and `Pass@W0rd`. 
 The HttpEventCollector (HEC) will listen on port 8088 once created from 
 Settings - Data Inputs menu option.

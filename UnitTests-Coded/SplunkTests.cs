@@ -19,7 +19,7 @@ namespace UnitTests_Coded
             var target = new HTTP
             {
                 Url = "https://localhost:8088/services/collector/event",
-                Authorization = "Splunk b87acd5b-3eba-4f0e-b768-1a715fd52871",
+                Authorization = "Splunk cd3f0725-5e56-440b-bafc-0ccb663537c1",
                 Name = "SplunkTarget",
                 InMemoryCompression = false,
                 BatchSize = 50000,
