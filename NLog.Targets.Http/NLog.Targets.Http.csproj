@@ -100,10 +100,12 @@
     <None Include="..\readme.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
-  <!--common NuGet package refs -->
   <ItemGroup>
-    <PackageReference Include="NLog" Version="4.7.13" />
-    <PackageReference Include="System.Net.Http" Version="4.3.4" />
+    <PackageReference Include="NLog" Version="4.7.15" />
+  </ItemGroup>
+  
+  <ItemGroup Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">
+    <PackageReference Include="System.Net.Http" Version="4.3.4" />    
   </ItemGroup>
 
   <!--.NET Standard 2.0 config -->
@@ -135,7 +137,12 @@
   <PropertyGroup Condition=" '$(TargetFramework)'=='net48' ">
     <AssemblyTitle>NLog.Targets.Http .NET 4.8</AssemblyTitle>
   </PropertyGroup>
-
+  
+    <!-- .NET 6.0 config -->
+  <PropertyGroup Condition=" '$(TargetFramework)'=='net6.0' ">
+    <AssemblyTitle>NLog.Targets.Http .NET 6.0</AssemblyTitle>
+  </PropertyGroup>
+  
   <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
     <Reference Include="mscorlib" />
     <Reference Include="System" />
